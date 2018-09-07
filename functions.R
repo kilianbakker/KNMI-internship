@@ -786,3 +786,57 @@ calculating_sampleclimatologies <- function(ContMethod, ProbMethod, observations
   clim_scores <- calculating_scores(ContMethod, ProbMethod, observations, sampleclimatologies, DiscretizeWidth)
   return(clim_scores)
 }
+
+calculating_distances <- function(stationxcoor, stationycoor, Type){
+Distances <- array(0, c(length(stationxcoor)))
+if (Type == "Coast"){
+  worldmap <- map("world", interior = F, xlim = c(3.4,7.1), ylim = c(50.8,53.5), plot = F)
+  
+  for (i in 1:length(worldmap$x)){
+    if (is.na(worldmap$x[i]) == F & is.na(worldmap$y[i]) == F){
+      if (worldmap$x[i] < 3.4 | worldmap$x[i] > 7.1 | worldmap$y[i] < 50.8 | worldmap$y[i] > 53.5){
+        worldmap$x[i] <- NA
+        worldmap$y[i] <- NA
+      } else if (worldmap$x[i] > 4.9 & worldmap$x[i] < 6 & worldmap$y[i] > 52.2 & worldmap$y[i] < 52.9){
+        worldmap$x[i] <- NA
+        worldmap$y[i] <- NA
+      }
+    }
+  }
+  
+  tempx <- na.omit(worldmap$x)
+  tempy <- na.omit(worldmap$y)
+  
+  for (j in 1:length(stationxcoor)){
+    tempNumber <- which(min(sqrt((stationxcoor[j] - tempx)^2 + (stationycoor[j] - tempy)^2)) == 
+                                                          sqrt((stationxcoor[j] - tempx)^2 + (stationycoor[j] - tempy)^2))[1]
+    Distances[j] <- sqrt((stationxcoor[j] - tempx[tempNumber])^2 + (stationycoor[j] - tempy[tempNumber])^2)
+  }
+} else if (Type == "Water"){
+  worldmap <- map("world", interior = F, xlim = c(3.4,7.1), ylim = c(50.8,53.5), plot = F)
+  
+  for (i in 1:length(worldmap$x)){
+    if (is.na(worldmap$x[i]) == F & is.na(worldmap$y[i]) == F){
+      if (worldmap$x[i] < 3.4 | worldmap$x[i] > 7.1 | worldmap$y[i] < 50.8 | worldmap$y[i] > 53.5){
+        worldmap$x[i] <- NA
+        worldmap$y[i] <- NA
+      }
+    }
+  }
+  
+  tempx <- na.omit(worldmap$x)
+  tempy <- na.omit(worldmap$y)
+  
+  for (j in 1:length(stationxcoor)){
+    tempNumber <- which(min(sqrt((stationxcoor[j] - tempx)^2 + (stationycoor[j] - tempy)^2)) == 
+                          sqrt((stationxcoor[j] - tempx)^2 + (stationycoor[j] - tempy)^2))[1]
+    Distances[j] <- sqrt((stationxcoor[j] - tempx[tempNumber])^2 + (stationycoor[j] - tempy[tempNumber])^2)
+  }
+} else if (Type == "Inland"){
+  for (j in 1:length(stationxcoor)){
+    ThreeCountriesPoint <- c(6.017, 50.75)
+    Distances[j] <- sqrt((stationxcoor[j] - ThreeCountriesPoint[1])^2 + (stationycoor[j] - ThreeCountriesPoint[2])^2)
+  }
+}
+return(Distances)
+}
