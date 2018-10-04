@@ -194,19 +194,6 @@ reading_ZA_CSR <- function(){
   saveRDS(ZA, file = "/usr/people/bakker/kilianbakker/Data/zenithangles_data.rds")
 }
 
-ME <- function(var1, var2){
-  MEvalue <- mean(var1 - var2, na.rm = TRUE)
-  MEperc1 <- MEvalue/mean(var1, na.rm = TRUE)*100
-  MEperc2 <- MEvalue/mean(var2, na.rm = TRUE)*100
-  return(c(MEvalue, MEperc1, MEperc2))
-}
-
-MAE <- function(var1, var2){
-  MAEvalue <- mean(abs(var1 - var2), na.rm = TRUE)
-  MAEperc1 <- MAEvalue/mean(var1, na.rm = TRUE)*100
-  MAEperc2 <- MAEvalue/mean(var2, na.rm = TRUE)*100
-  return(c(MAEvalue, MAEperc1, MAEperc2))
-}
 
 RMSE <- function(var1, var2){
   n <- length(var1)
@@ -223,113 +210,22 @@ CRPS <- function(var1, var2){
   return(c(CRPSvalue, CRPSperc1))
 }
 
-HeidkeScores <- function(observations, forecasts, DiscretizeWidth){
-  observations <- floor(observations/DiscretizeWidth)*DiscretizeWidth
-  forecasts <- floor(forecasts/DiscretizeWidth)*DiscretizeWidth
-  
-  start <- round(min(c(observations, forecasts)), digits = log(1/DiscretizeWidth)/log(10))
-  end <- round(max(c(observations, forecasts)), digits = log(1/DiscretizeWidth)/log(10))
-  
-  HS <- 0
-  for (i in (start/DiscretizeWidth):(end/DiscretizeWidth)){
-    HS <- HS + length(observations[observations == i*DiscretizeWidth & forecasts == i*DiscretizeWidth])
-  }
-  HS <- HS/length(observations)
-  return(HS)
+BS <- function(var1, var2){
+  tempBS <- (var1 - var2)^2
+  BS <- sum(tempBS)/length(tempBS)
+  return(BS)
 }
 
-PeirceScores <- function(observations, forecasts, DiscretizeWidth){
-  observations <- floor(observations/DiscretizeWidth)*DiscretizeWidth
-  forecasts <- floor(forecasts/DiscretizeWidth)*DiscretizeWidth
-
-  start <- round(min(c(observations, forecasts)), digits = log(1/DiscretizeWidth)/log(10))
-  end <- round(max(c(observations, forecasts)), digits = log(1/DiscretizeWidth)/log(10))
-  
-  PS <- 0
-  for (i in (start/DiscretizeWidth):(end/DiscretizeWidth)){
-    PS <- PS + length(observations[observations == i*DiscretizeWidth & forecasts == i*DiscretizeWidth])
-  }
-  PS <- PS/length(observations)
-  return(PS)
-}
-
-GandinMurphySkillScores <- function(observations, forecasts, DiscretizeWidth){
-  observations_clim <- floor(mean(observations)/DiscretizeWidth)*DiscretizeWidth
-  observations <- floor(observations/DiscretizeWidth)*DiscretizeWidth
-  forecasts <- floor(forecasts/DiscretizeWidth)*DiscretizeWidth
-
-  start <- round(min(c(observations, forecasts)), digits = log(1/DiscretizeWidth)/log(10))
-  end <- round(max(c(observations, forecasts)), digits = log(1/DiscretizeWidth)/log(10))
-  
-  D <- c((start/DiscretizeWidth):(end/DiscretizeWidth))
-  for (i in 1:((end-start)/DiscretizeWidth+1)){
-    tempNumber <- 0
-    for (k in 1:i){
-      tempNumber <- tempNumber + length(observations[observations_clim == (k-1)*DiscretizeWidth-start])
-    }
-    tempNumber <- tempNumber/length(observations)
-    D[i] <- (1-tempNumber)/tempNumber
-  }
-  S <- array(0, c(((end-start)/DiscretizeWidth+1),((end-start)/DiscretizeWidth+1)))
-  for (i in 1:((end-start)/DiscretizeWidth+1)){
-    for (j in 1:((end-start)/DiscretizeWidth+1)){
-      if (i == j){
-        S[i,j] <- (sum(1/D[1:(j-1)]) + sum(D[j:((end-start)/DiscretizeWidth)]))/((end-start)/DiscretizeWidth)
-      } else if (i < j){
-        S[i,j] <- (sum(1/D[1:(i-1)]) + sum(D[j:((end-start)/DiscretizeWidth)]) - (j-i))/((end-start)/DiscretizeWidth)
-        S[j,i] <- S[i,j] 
-      }
+PEVscores <- function(tempObs, tempFor, cost, loss){
+  PEV <- c(1:length(tempObs))
+  for (i in 1:length(tempObs)){
+    if (tempObs[i] == 1){
+      PEV[i] <- Cost*tempFor[i]
+    } else if (tempObs[i] == 0){
+      PEV[i] <- Cost*tempFor[i] + Loss*(1-tempFor[i])
     }
   }
-  
-  GM_SS_for <- 0
-  for (i in (start/DiscretizeWidth):(end/DiscretizeWidth)){
-    for (j in (start/DiscretizeWidth):(end/DiscretizeWidth)){
-      GM_SS_for <- GM_SS_for + length(observations[observations == i*DiscretizeWidth & forecasts == j*DiscretizeWidth])*S[i+1-start/DiscretizeWidth,j+1-start/DiscretizeWidth]
-    }
-  }
-  GM_SS <- GM_SS_for/length(observations)
-  return(GM_SS)
-}
-
-RPS <- function(observations, forecasts, DiscretizeWidth, quants){
-  #Input forecasts are in (discretized) CDF form 
-  observations <- floor(observations/DiscretizeWidth)*DiscretizeWidth
-  forecasts <- floor(forecasts/DiscretizeWidth)*DiscretizeWidth
-
-  start <- round(min(observations), digits = log(1/DiscretizeWidth)/log(10))
-  end <- round(max(observations), digits = log(1/DiscretizeWidth)/log(10))
-  DiscretizationInterval <- seq(start,end,DiscretizeWidth)
-  
-  temp_obs <- array(0, c(length(observations),length(DiscretizationInterval)))
-  for (f in 1:length(DiscretizationInterval)){
-    for (i in 1:length(observations)){
-      if (observations[i] > DiscretizationInterval[f]){
-        temp_obs[i,f] <- 1
-      }
-    }
-  }
-  
-  temp_RPS_for <- array(0,c(length(observations), length(DiscretizationInterval)))
-  for (i in 1:length(observations)){
-    for (f in 1:length(DiscretizationInterval)){
-      temp_RPS_for[i,f] <- (forecasts[i,f] - temp_obs[i,f])^2
-    }
-  }
-  RPS <- sum(temp_RPS_for)/length(observations)
-  return(RPS)
-}
-
-POVscores <- function(observations, forecasts, cost, loss){
-  PEV <- c(1:length(observations))
-  for (i in 1:length(observations)){
-    if (observations[i] == 1){
-      PEVscore[i] <- Cost*forecasts[i,1]
-    } else if (observations[i] == 0){
-      PEVscore[i] <- Cost*forecasts[i,1] + Loss*forecasts[i,2]
-    }
-  }
-  PEVscore <- sum(PEV)/length(observations)
+  PEVscore <- sum(PEV)/length(tempObs)
   return(PEVscore)
 }
 
@@ -351,16 +247,37 @@ QEVscores <- function(observations, forecasts, quants){
   return(QEVscore)
 }
 
+Reliability_diagram <- function(tempObs, tempFor, NumberofBins){
+  Reliabilities <- array(NA, c(NumberofBins))
+  Binaxis <- seq(0,1,1/NumberofBins)
+  for (b in 1:(NumberofBins)){
+    Indices <- which((tempFor > Binaxis[b]) & (tempFor < Binaxis[b+1]))
+    Reliabilities[b] <- sum(as.numeric(tempObs[Indices] == 1))/length(Indices)
+  }
+  return(Reliabilities)
+}
+
+Reliability_plot <- function(plotData, plotName, plotsettings){
+  Plot <- ggplot(data = plotData) + 
+    geom_line(mapping = aes(x = xaxis, y = data, color = Method, linetype = Method)) + 
+    scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
+    scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
+    geom_line(mapping = aes(x = xaxis, y = xaxis), linetype = "twodash") + xlab("Forecast probability") + ylab("Observed relative frequency") +
+    ggtitle(plotName)
+  return(Plot)
+}
+
 FitPlot <- function(plotData, xpos1, ypos1, delta_ypos1){
   fit <- lm(plotData[[1]] ~ plotData[[2]], data = plotData)
   
-  ggplot(data = plotData, mapping = aes(x = plotData[[2]], y = plotData[[1]])) +
+  plot <- ggplot(data = plotData, mapping = aes(x = plotData[[2]], y = plotData[[1]])) +
     geom_point() +
     geom_smooth(method='lm') +
     annotate("text", x = xpos1, y = ypos1, label = paste0(names(plotData)[[1]], " = ", round(coefficients(fit)[[1]], digits = 2), " + ", 
                                                           round(coefficients(fit)[[2]], digits = 2), " * ", names(plotData)[[2]])) +
     annotate("text", x = xpos1, y = ypos1 - delta_ypos1, label = paste0("R^2 = ", round(summary(fit)[[8]], digits = 4))) +
     xlab(names(plotData)[[2]]) + ylab(names(plotData)[[1]])
+  return(plot)
 }
 
 RadiationPlot <- function(plotData, xpos1, ypos1, delta_ypos1){
@@ -368,7 +285,7 @@ RadiationPlot <- function(plotData, xpos1, ypos1, delta_ypos1){
   scores <- RMSE(plotData[[1]],plotData[[2]])
   fit <- lm(plotData[[1]] ~ plotData[[2]], data = plotData)
   
-  ggplot(data = plotData, mapping = aes(x = plotData[[2]], y = plotData[[1]])) +
+  plot <- ggplot(data = plotData, mapping = aes(x = plotData[[2]], y = plotData[[1]])) +
     geom_point() +
     geom_smooth(method='lm') +
     annotate("text", x = xpos1, y = ypos1, label = paste0("For = ", round(coefficients(fit)[[1]], digits = 2), " + ", 
@@ -380,6 +297,28 @@ RadiationPlot <- function(plotData, xpos1, ypos1, delta_ypos1){
     annotate("text", x = xpos1, y = ypos1 - 6*delta_ypos1, 
              label = paste0("RMSE = ", round(scores[1], digits = 2), " (", round(scores[2],digits = 2), "%)")) + 
     xlab(names(plotData)[[2]]) + ylab(names(plotData)[[1]]) + ggtitle(paste0(names(plotData)[[2]], " VS observations"))
+  return(plot)
+}
+
+LinePlot <- function(plotData, plotName, plotsettings, xaxis, Bounds){
+  plot <- ggplot(data = plotData) +
+    geom_line(mapping = aes(x = rep(seq(xaxis),length(unique(plotData$Method))), y = data, color = Method, linetype = Method)) +
+    scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
+    scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
+    scale_x_continuous(breaks=seq(xaxis), labels=xaxis) + 
+    ylim(Bounds) + xlab("leadTime") + ylab("Skill scores") + ggtitle(plotName)
+  return(plot)
+}
+
+MapPlot <- function(plotData, plotName, plotsettings){
+  plot <- ggplot(plotData) + 
+    geom_point(aes(x = longitude, y = latitude, color = Method, linetype = Method)) + 
+    scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
+    scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
+    geom_text(aes(x = longitude, y = latitude, label = Labels), nudge_x = 0.05, nudge_y = 0.05) + 
+    geom_polygon(data = map_data("world"), aes(x=long, y = lat, group = group), fill = NA, color = "black", size = 0.25) +
+    coord_fixed(xlim = c(3.25, 7.5), ylim = c(50.75,53.5), ratio = 1.3) + ggtitle(plotName)
+  return(plot)
 }
 
 importing_forecasts <- function(init_dates_CS, leadTimes){
@@ -399,10 +338,9 @@ importing_forecasts <- function(init_dates_CS, leadTimes){
   return(tempforecasts)
 }
 
-coordinatesLargeGrid <- function(stationData, stationPlaces, xDomainSizes, yDomainSizes){
+coordinatesLargeGrid <- function(stationData, stationPlaces, xDomainSizes, yDomainSizes, tmprds){
   xcoordinates <- c()
   ycoordinates <- c()
-  tmprds         <- readRDS(file = "/nobackup/users/bakker/Data/temperaturevariables/20160401.rds")
   tempxcoordinates   <- unique(tmprds[[2]])
   tempycoordinates   <- unique(tmprds[[3]])
   for (i in 1:length(stationPlaces)){
@@ -417,7 +355,7 @@ coordinatesLargeGrid <- function(stationData, stationPlaces, xDomainSizes, yDoma
 coordinatesSmallGrid <- function(stationData, stationPlaces){
   xcoordinates <- c()
   ycoordinates <- c()
-  tmpraster      <- crop(raster("/net/pc150398/nobackup_1/users/meirink/msgdev/CAMS/CAMS_20170808.nc", varname = "aot500"), extent(3.4, 7.1, 50.8, 53.5))
+  tmpraster      <- crop(raster("/net/pc150398/nobackup_1/users/meirink/msgdev/CAMS/CAMS_20170808.nc", varname = "aot500"), extent(3.25, 7.25, 50.75, 53.5))
   tempxcoordinates   <- unique(coordinates(tmpraster)[,1])
   tempycoordinates   <- unique(coordinates(tmpraster)[,2])
     for (i in 1:length(stationPlaces)){
@@ -429,83 +367,87 @@ coordinatesSmallGrid <- function(stationData, stationPlaces){
   return(list(xcoordinates, ycoordinates))
 }
 
-importing_variables <- function(stationData, stationPlaces, typeCS, typeZenith, init_dates, Includedvariables, 
-                                variableNamesCorr, leadTimes, leadTimeSizes, xDomainSizes, yDomainSizes, heights2, filename){
-AllStationsvariableData <- array(0, c(length(init_dates)*length(stationPlaces), length(variableNamesCorr), length(leadTimes)))
+importing_variables <- function(stationData, stationPlaces, init_dates, variableNames, leadTimes, leadTimeSizes, DomainSizes, heights2, zenithangleData, filename){
+tempTimes <- c(0,3,6,9,12,15,18,21,24)
+
+AllStationsvariableData <- array(NA, c(length(init_dates), length(stationPlaces), length(leadTimes), length(variableNames)))
+for (date in 1:length(init_dates)){
+  print(date)
+  Sys.sleep(0.01)
+  temperatureData <- readRDS(file = paste0("/nobackup/users/bakker/Data2/temperaturevariables/",init_dates[date],".rds"))
+  humidityData <- readRDS(file = paste0("/nobackup/users/bakker/Data2/humidityvariables/",init_dates[date],".rds"))
+  radiationData <- readRDS(file = paste0("/nobackup/users/bakker/Data2/radiationvariables/",init_dates[date],".rds"))
+  cloudData <- readRDS(file = paste0("/nobackup/users/bakker/Data2/cloudvariables/",init_dates[date],".rds"))
+  particlesData <- readRDS(file = paste0("/nobackup/users/bakker/Data/particlesvariables/",init_dates[date],".rds"))
+  
 for (place in 1:length(stationPlaces)){
-  xcoordinate <- coordinatesLargeGrid(stationData,stationPlaces[place], xDomainSizes, yDomainSizes)[[1]]
-  ycoordinate <- coordinatesLargeGrid(stationData,stationPlaces[place], xDomainSizes, yDomainSizes)[[2]]
+  xcoordinate <- coordinatesLargeGrid(stationData,stationPlaces[place], DomainSizes, DomainSizes, temperatureData)[[1]]
+  ycoordinate <- coordinatesLargeGrid(stationData,stationPlaces[place], DomainSizes, DomainSizes, temperatureData)[[2]]
   xcoordinate2 <- coordinatesSmallGrid(stationData,stationPlaces[place])[[1]]
   ycoordinate2 <- coordinatesSmallGrid(stationData,stationPlaces[place])[[2]]
-  length1 <- length(xcoordinate)*length(ycoordinate)
-  tempvariableData <- c()
-for (j in 1:length(init_dates)){
-  temperatureData <- readRDS(file = paste0("/nobackup/users/bakker/Data/temperaturevariables/",init_dates[j],".rds"))
-  temperatureData <- filter(temperatureData, xcoor %in% xcoordinate, ycoor %in% ycoordinate)
+  LowIndices <- c(1:7)
+  MediumIndices <- c(8:10)
+  HighIndices <- c(11:13)
 
-  humidityData <- readRDS(file = paste0("/nobackup/users/bakker/Data/humidityvariables/",init_dates[j],".rds"))
-  humidityData <- filter(humidityData, xcoor %in% xcoordinate, ycoor %in% ycoordinate)
-
-  radiationData <- readRDS(file = paste0("/nobackup/users/bakker/Data/radiationvariables/",init_dates[j],".rds"))
-  radiationData <- filter(radiationData, xcoor %in% xcoordinate, ycoor %in% ycoordinate)
-  tempRadiationData <- (radiationData[(length1+1):length(radiationData[[1]]), 4:8] - 
-                       radiationData[1:(length(radiationData[[1]]) - length1), 4:8])/3600
-  radiationData <- rbind(data.frame(Global = array(0,c(length1)), Direct_SURF = array(0,c(length1)), Direct_TOA = array(0,c(length1)), 
-                                        NCS_SURF = array(0,c(length1)), NCS_TOA = array(0,c(length1))), tempRadiationData)
-    
-  cloudData <- readRDS(file = paste0("/nobackup/users/bakker/Data/cloudvariables/",init_dates[j],".rds"))
-  cloudData <- filter(cloudData, xcoor %in% xcoordinate, ycoor %in% ycoordinate)
-  tempcloudData <- c(array(0,c(length1)), cloudData[(length1+1):length(cloudData[[1]]), 16] - cloudData[1:(length(cloudData[[1]]) - length1), 16])
-  cloudData[,16] <- tempcloudData
-
-  particlesData <- readRDS(file = paste0("/nobackup/users/bakker/Data/particlesvariables/",init_dates[j],".rds"))
-  particlesData <- filter(particlesData, xcoor %in% xcoordinate2, ycoor %in% ycoordinate2)
-  tempTimes <- unique(particlesData[[1]])
-  tempTimes2 <- as.numeric(as.character(temperatureData[[1]]))
-  closestleadTimes <- c(1:length(tempTimes2))
-  for (k in 1:length(temperatureData[[1]])){
-    closestleadTimes[k] <- which(min(abs(tempTimes2[k] - tempTimes)) == abs(tempTimes2[k] - tempTimes))
-  }
-  tempParticlesData <- data.frame(AOD = particlesData[closestleadTimes,4], ANG = particlesData[closestleadTimes,5], OZ = particlesData[closestleadTimes,6])
-
-  tempData <- data.frame(Date = init_dates[j],temperatureData, humidityData[,4:16], radiationData[,1:5], cloudData[,4:18], tempParticlesData[,1:3])
-  tempvariableData <- rbind(tempvariableData,tempData)
-}
-
-  variableData <- array(0, c(length(init_dates), length(variableNamesCorr), length(leadTimes)))
   for (time in 1:length(leadTimes)){
     leadTime <- leadTimes[time]
+    tempvariables <- array(NA, c(28))
     
-    CSR <- c(1:length(init_dates))
-    if (leadTime <= 24){
-      temp_init_dates <- init_dates
-    } else {
-      temp_init_dates <- c(init_dates[-1],20180317)
+    leadTimesRegion <- leadTime + leadTimeSizes
+    if (leadTime %in% c(5,29)){
+      leadTimesRegion <- leadTime + leadTimeSizes[-1]
     }
-    for (k in 1:length(init_dates)){
-      CSR[k] <- ClearskyRadiation((leadTime %% 24),temp_init_dates[k],stationData[[4]][place],stationData[[3]][place],0, typeCS, typeZenith)
+    radiations <- colMeans(filter(radiationData, xcoor %in% xcoordinate, ycoor %in% ycoordinate, as.numeric(as.character(lt)) %in% (leadTimesRegion))[4:8])
+    previousradiations <- colMeans(filter(radiationData, xcoor %in% xcoordinate, ycoor %in% ycoordinate, as.numeric(as.character(lt)) %in% (leadTimesRegion - 1))[4:8])
+    
+    tempvariables[1:5] <- as.numeric(unname((radiations - previousradiations)/3600))
+    
+    clouds <- colMeans(filter(cloudData, xcoor %in% xcoordinate, ycoor %in% ycoordinate, as.numeric(as.character(lt)) %in% (leadTimesRegion))[4:16])
+    previousRain <- colMeans(filter(cloudData, xcoor %in% xcoordinate, ycoor %in% ycoordinate, as.numeric(as.character(lt)) %in% (leadTimesRegion - 1))[16])
+    clouds[length(clouds)] <- clouds[length(clouds)] - previousRain
+    
+    tempvariables[6:18] <- as.numeric(unname(clouds))
+    
+    closestLeadTime <- tempTimes[which(min(abs(tempTimes - leadTime)) == abs(tempTimes - leadTime))]
+    particles <- filter(particlesData, xcoor %in% xcoordinate2, ycoor %in% ycoordinate2, as.numeric(as.character(lt)) == closestLeadTime)[4:6]
+    
+    tempvariables[19:21] <- as.numeric(unname(particles))
+    
+    temperatures <- colMeans(filter(temperatureData, xcoor %in% xcoordinate, ycoor %in% ycoordinate, as.numeric(as.character(lt)) %in% (leadTimesRegion))[5:17])
+    humidities <- colMeans(filter(humidityData, xcoor %in% xcoordinate, ycoor %in% ycoordinate, as.numeric(as.character(lt)) %in% (leadTimesRegion))[4:16])
+    
+    tempvariables[22] <- sum(temperatures[LowIndices]*diff(heights2)[LowIndices], na.rm = T)/sum(diff(heights2)[LowIndices])
+    tempvariables[23] <- sum(temperatures[MediumIndices]*diff(heights2)[MediumIndices], na.rm = T)/sum(diff(heights2)[MediumIndices])
+    tempvariables[24] <- sum(temperatures[HighIndices]*diff(heights2)[HighIndices], na.rm = T)/sum(diff(heights2)[HighIndices])
+    tempvariables[25] <- sum(humidities[LowIndices]*diff(heights2)[LowIndices], na.rm = T)/sum(diff(heights2)[LowIndices])
+    tempvariables[26] <- sum(humidities[MediumIndices]*diff(heights2)[MediumIndices], na.rm = T)/sum(diff(heights2)[MediumIndices])
+    tempvariables[27] <- sum(humidities[HighIndices]*diff(heights2)[HighIndices], na.rm = T)/sum(diff(heights2)[HighIndices])
+  
+    tempDate <- init_dates[date]
+    if (leadTime > 24){
+      tempDate2 <- paste0(substr(tempDate,1,4), "-", substr(tempDate,5,6), "-", substr(tempDate,7,8))
+      tempDate <- as.numeric(gsub("-","",as.Date(tempDate2) + 1))
     }
-
-    tempvariableData2 <- filter(tempvariableData, as.numeric(as.character(lt)) %in% c(leadTime + leadTimeSizes))
-
-  for (p in 1:length(init_dates)){
-    for (q in 1:5){
-      variableData[p,q, time] <- round(mean(filter(tempvariableData2, Date == init_dates[p])[4 + Includedvariables[q]][[1]]), digits = 4)/CSR[p]
-    }
-    for (q in 6:length(Includedvariables)){
-      variableData[p,q, time] <- round(mean(filter(tempvariableData2, Date == init_dates[p])[4 + Includedvariables[q]][[1]]), digits = 4)
-    }
-    variableData[p,length(Includedvariables) + 1, time] <- round(sum(as.numeric(colMeans(filter(tempvariableData2, Date == init_dates[p])[6:12]))*diff(heights2)[1:7])/sum(diff(heights2)[1:7]), digits = 4)
-    variableData[p,length(Includedvariables) + 2, time] <- round(sum(as.numeric(colMeans(filter(tempvariableData2, Date == init_dates[p])[13:15]))*diff(heights2)[8:10])/sum(diff(heights2)[8:10]), digits = 4)
-    variableData[p,length(Includedvariables) + 3, time] <- round(sum(as.numeric(colMeans(filter(tempvariableData2, Date == init_dates[p])[16:18]))*diff(heights2)[11:13])/sum(diff(heights2)[11:13]), digits = 4)
-    variableData[p,length(Includedvariables) + 4, time] <- round(sum(as.numeric(colMeans(filter(tempvariableData2, Date == init_dates[p])[19:25]))*diff(heights2)[1:7])/sum(diff(heights2)[1:7]), digits = 4)
-    variableData[p,length(Includedvariables) + 5, time] <- round(sum(as.numeric(colMeans(filter(tempvariableData2, Date == init_dates[p])[26:28]))*diff(heights2)[8:10])/sum(diff(heights2)[8:10]), digits = 4)
-    variableData[p,length(Includedvariables) + 6, time] <- round(sum(as.numeric(colMeans(filter(tempvariableData2, Date == init_dates[p])[29:31]))*diff(heights2)[11:13])/sum(diff(heights2)[11:13]), digits = 4)
+    
+    Zenith <- filter(zenithangleData, Station %in% stationData[[2]][place], Time == (leadTime %% 24), Date == tempDate)[[4]]
+    tempvariables[28] <- cos(Zenith*pi/180)
+    
+    AllStationsvariableData[date,place,time,1:28] <- tempvariables
   }
-  }
-  AllStationsvariableData[(length(init_dates)*(place - 1) + 1):(length(init_dates)*place), , ] <- variableData
+  
+  AllStationsvariableData[date,place,,which(variableNames == "Lat")] <- array(stationData[[3]][place], c(length(leadTimes)))
+  AllStationsvariableData[date,place,,which(variableNames == "Lon")] <- array(stationData[[4]][place], c(length(leadTimes)))
+  AllStationsvariableData[date,place,,which(variableNames == "DistToCoast")] <- array(stationData[[5]][place], c(length(leadTimes)))
+  AllStationsvariableData[date,place,,which(variableNames == "DistToWater")] <- array(stationData[[6]][place], c(length(leadTimes)))
+  AllStationsvariableData[date,place,,which(variableNames == "DistToInland")] <- array(stationData[[7]][place], c(length(leadTimes)))
 }
-saveRDS(AllStationsvariableData, file  = paste0("/usr/people/bakker/kilianbakker/Data/",filename,".rds"))
+  
+tempDate3 <- paste0(substr(init_dates[date],1,4), "-", substr(init_dates[date],5,6), "-", substr(init_dates[date],7,8))
+DoY <- as.numeric(strftime(tempDate3, format = "%j"))
+
+AllStationsvariableData[date,,,which(variableNames == "DoY")] <- array(DoY, c(length(stationPlaces), length(leadTimes)))
+}
+saveRDS(AllStationsvariableData, file  = paste0("/usr/people/bakker/kilianbakker/Data/", filename, ".rds"))
 }
 
 importingclearskyhours <- function(Globalmin, Globalmax, Difmax, sdIntervalWidth, Stdevmax){
@@ -627,73 +569,58 @@ importinglargeErrorhours <- function(Errorbound, stationData, stationPlace, init
   saveRDS(LargeErrorHours, file = "/usr/people/bakker/kilianbakker/Data/largeErrorhours.rds")
 }
 
-predict.multqrsvm.new <- function(model, newdata) {
-  requireNamespace("kernlab", quietly = TRUE)
-  
-  if (class(model)=="multqrsvm"){
-    prediction<-list()
-    
-    if (ncol(newdata) != ncol(model[[1]]$xtrain)) {
-      cat("Newdata has different number of columns than xtrain please check consistency!",
-          fill = TRUE)
-    }
-    for (i in 1:length(model)){
-      xold <- model[[i]]$xtrain
-      alpha <- model[[i]]$alpha
-      kern <- model[[i]]$kernel
-      b <- model[[i]]$b0
-      
-      prediction[[i]] <- kernelMult(kern, newdata, xold, alpha) + b
+binaryPredictand <- function(observations, forecasts, threshold, quants){
+  tempObs <- array(0, c(length(observations)))
+  for (i in 1:length(observations)){
+    if (observations[i] >= threshold){
+      tempObs[i] <- 1
     }
   }
-  
-  return(prediction)
-}
-
-predict.qrsvm.new <- function(model, newdata) {
-  requireNamespace("kernlab", quietly = TRUE)
-  
-  
-  
-  if (class(model)=="qrsvm"){
-    xold <- model$xtrain
-    
-    if (ncol(newdata) != ncol(xold)) {
-      cat("Newdata has different number of columns than xtrain please check consistency!",
-          fill = TRUE)
-    }
-    alpha <- model$alpha
-    kern <- model$kernel
-    b <- model$b0
-    prediction <- kernelMult(kern, newdata, xold, alpha) + b
+  tempFor <- array(0, c(length(observations)))
+  for (j in 1:length(observations)){
+    tempFor[j] <- length(which(forecasts[j,] >= threshold))/length(quants)
   }
-  return(prediction)
+  return(list(tempObs,tempFor))
 }
 
-calculating_scores <- function(ContMethod, ProbMethod, observations, forecasts, DiscretizeWidth){
-  if (ProbMethod == 1){
-    observations <- observations[is.na(forecasts) == F]
-    forecasts <- na.omit(forecasts)
-  } else if (ProbMethod == 2){
-    for (l in 1:length(observations)){
-      for (q in 1:length(quants)){
-        if (is.na(forecasts[l,q])){
-          forecasts[l,] <- NA
-        }
+calculating_scores <- function(ScoringMethod, observations, forecasts, CSR){
+  for (l in 1:length(observations)){
+    if (CSR[l] < 20){
+      forecasts[l,] <- NA
+      observations[l] <- NA
+      CSR[l] <- NA
+    } 
+    if (sum(as.numeric(is.na(forecasts[l,]) == T)) > 0){
+      forecasts[l,] <- NA
+      observations[l] <- NA
+      CSR[l] <- NA
+    }
+  }
+  tempObs <- na.omit(observations)
+  tempFor <- na.omit(forecasts)
+  tempCSR <- na.omit(CSR)
+  
+  if (length(tempObs) > 1){
+    if (ScoringMethod[1] == 0){
+      if (ScoringMethod[2] == "RMSESS"){
+        Score <- RMSE(tempObs, tempFor)[1]
+      } else if (ScoringMethod[2] == "CRPSS"){
+        Score <- CRPS(tempObs, tempFor)[1]
+      } else if (ScoringMethod[2] == "QEVSS"){ 
+        Score <- QEVscores(tempObs, tempFor, quants)
+      } else if (ScoringMethod[2] == "QSS"){
+        Score <- quantileScore(tempObs, tempFor, quants)
       }
-    }
-    observations <- observations[is.na(forecasts[,1]) == F]
-    forecasts <- na.omit(forecasts)
-  }
-  if (length(observations) > 1){
-    if (ContMethod == 1 & ProbMethod == 1){
-      Score <- HeidkeScores(observations, forecasts, DiscretizeWidth)
-    } else if (ContMethod == 2 & ProbMethod == 1){
-      Score <- RMSE(observations, forecasts)[1]
-    } else if (ContMethod == 1 & ProbMethod == 2){
-      Score <- RPS(observations, forecasts, DiscretizeWidth)
-    } else if (ContMethod == 2 & ProbMethod == 2){
-      Score <- CRPS(observations, forecasts)[1]
+    } else if (ScoringMethod[1] == 1){
+      tempObs <- binaryPredictand(tempObs/tempCSR, tempFor/array(tempCSR,c(length(tempCSR),length(quants))), threshold, quants)[[1]]
+      tempFor <- binaryPredictand(tempObs/tempCSR, tempFor/array(tempCSR,c(length(tempCSR),length(quants))), threshold, quants)[[2]]
+      if (ScoringMethod[2] == "PEVSS"){
+        Score <- PEVscores(tempObs,tempFor, cost, loss)
+      } else if (ScoringMethod[2] == "BSS"){
+        Score <- BS(tempObs,tempFor)
+      } else if (ScoringMethod[2] == "ReliabilityPlot"){
+        Score <- Reliability_diagram(tempObs,tempFor,NumberofBins)
+      }
     }
   } else {
     Score <- NA
@@ -733,7 +660,7 @@ saving_dailyclimatologies <- function(ProbMethod, quants, stationData, stationPl
   saveRDS(dailyclimatologies, file = paste0("/usr/people/bakker/kilianbakker/Data/dailyclimatologies_",ProbMethod,".rds"))
 }
 
-calculating_dailyclimatologies <- function(ContMethod, ProbMethod, leadTime, observations, init_dates, quants, stationPlace, DiscretizeWidth){
+calculating_dailyclimatologies <- function(ContMethod, ProbMethod, leadTime, observations, CSR, init_dates, quants, stationPlace, DiscretizeWidth){
   tempdailyclimatologies <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/dailyclimatologies_",ProbMethod,".rds"))
   if (ProbMethod == 1){
     dailyclimatologies <- array(NA, c(length(init_dates)))
@@ -766,31 +693,33 @@ calculating_dailyclimatologies <- function(ContMethod, ProbMethod, leadTime, obs
     dailyclimatologies <- round(dailyclimatologies, digits = log(1/DiscretizeWidth)/log(10))
   }
   
-  clim_scores <- calculating_scores(ContMethod, ProbMethod, observations, dailyclimatologies, DiscretizeWidth)
+  clim_scores <- calculating_scores(ScoringMethod, observations, dailyclimatologies, CSR)
   return(clim_scores)
 }
 
 calculating_sampleclimatologies <- function(ContMethod, ProbMethod, observations, CSR, init_dates, quants, DiscretizeWidth){
-    init_dates_temp <- init_dates[which(CSR > 20)]
-    if (length(init_dates_temp) > 0){
+  init_dates_temp <- init_dates[which(CSR > 20)]
+  if (length(init_dates_temp) > 0){
     tempobservations <- observations[which(init_dates %in% init_dates_temp)]
-    if (ProbMethod == 1){
-      sampleclimatologies <- array(mean(tempobservations), c(length(init_dates)))
-    } else if (ProbMethod == 2){
-      sampleclimatologies <- array(unname(quantile(tempobservations, quants)), c(length(init_dates), length(quants)))
-    }
-    }
+  } else {
+    tempobservations <- 0
+  }
+  if (ProbMethod == 1){
+    sampleclimatologies <- array(mean(tempobservations), c(length(init_dates)))
+  } else if (ProbMethod == 2){
+    sampleclimatologies <- array(unname(quantile(tempobservations, quants)), c(length(init_dates), length(quants)))
+  }
   if (ContMethod == 1){
     sampleclimatologies <- round(sampleclimatologies, digits = log(1/DiscretizeWidth)/log(10))
   }
-  clim_scores <- calculating_scores(ContMethod, ProbMethod, observations, sampleclimatologies, DiscretizeWidth)
+  clim_scores <- calculating_scores(ScoringMethod, observations, sampleclimatologies, CSR)
   return(clim_scores)
 }
 
 calculating_distances <- function(stationxcoor, stationycoor, Type){
 Distances <- array(0, c(length(stationxcoor)))
 if (Type == "Coast"){
-  worldmap <- map("world", interior = F, xlim = c(3.4,7.1), ylim = c(50.8,53.5), plot = F)
+  worldmap <- maps::map("world", interior = F, xlim = c(3.4,7.1), ylim = c(50.8,53.5), plot = F)
   
   for (i in 1:length(worldmap$x)){
     if (is.na(worldmap$x[i]) == F & is.na(worldmap$y[i]) == F){
@@ -813,7 +742,7 @@ if (Type == "Coast"){
     Distances[j] <- sqrt((stationxcoor[j] - tempx[tempNumber])^2 + (stationycoor[j] - tempy[tempNumber])^2)
   }
 } else if (Type == "Water"){
-  worldmap <- map("world", interior = F, xlim = c(3.4,7.1), ylim = c(50.8,53.5), plot = F)
+  worldmap <- maps::map("world", interior = F, xlim = c(3.4,7.1), ylim = c(50.8,53.5), plot = F)
   
   for (i in 1:length(worldmap$x)){
     if (is.na(worldmap$x[i]) == F & is.na(worldmap$y[i]) == F){

@@ -6,6 +6,7 @@ libpath = "/usr/people/bakker/R/x86_64-redhat-linux-gnu-library/3.4"
 library(tidyverse)
 library(rasterVis)
 library(ggplot2)
+library(ggpubr)
 library(grid)
 library(gridExtra)
 library(fitdistrplus)
@@ -41,216 +42,15 @@ observationData[[4]] <- observationData[[4]]*(10000/3600)
 fnames         <- data.frame(files = list.files(path = "/nobackup/users/bakker/Data/radiationvariables", full.names = TRUE), stringsAsFactors = FALSE)
 init_dates     <- as.numeric(unique(gsub(".rds", "", basename(fnames$files))))
 
-xcoordinate <- coordinatesLargeGrid(stationData,stationPlace, c(0), c(0))[[1]]
-ycoordinate <- coordinatesLargeGrid(stationData,stationPlace, c(0), c(0))[[2]]
+tmprds <- readRDS(file = "/nobackup/users/bakker/Data/temperaturevariables/20160401.rds")
+xcoordinate <- coordinatesLargeGrid(stationData,stationPlace, c(0), c(0), tmprds)[[1]]
+ycoordinate <- coordinatesLargeGrid(stationData,stationPlace, c(0), c(0), tmprds)[[2]]
 xcoordinate2 <- coordinatesSmallGrid(stationData,stationPlace)[[1]]
 ycoordinate2 <- coordinatesSmallGrid(stationData,stationPlace)[[2]]
 
-plotcolors <- c("blue", "red", "green", "orange", "steelblue1", "purple", "deeppink", "darkblue", "darkgreen", "black")
-
-##TESTING AREA##
-
-#################################
-##FORECAST COMPARISON##
-#################################
-
-forecastDataW <- read.table(paste0("/net/bhw444/nobackup/users/veenvds/CABAUW/",yearNumber,"/",sprintf("%02d",monthNumber),"/",sprintf("%02d",dayNumber)
-                                ,"/Cabauw_SW_N",dateNumber,"0000_+48"), col.names=c("xcoor","ycoor","direct","globaal","dekkingsgraad"), fill=TRUE)
-forecastDataW <- filter(forecastDataW, xcoor == 134, ycoor == 130, direct != -99.0)
-diurnalCycle1 <- c(0,0,0,diff(forecastDataW[[4]][3:25]))/3600
-
-forecastData <- readRDS(file = paste0("/nobackup/users/bakker/Data/radiationvariables/",dateNumber,".rds"))
-forecastData <- filter(forecastData, xcoor == xcoordinate, ycoor = ycoordinate, as.numeric(lt)<=25 & as.numeric(lt) >= 2)
-diurnalCycle2 <- c(0,0,0,diff(forecastData[[7]][2:24]))/3600
-
-time = c(0,1,forecastData[[2]][1:23])
-plotData = data.frame(time,diurnalCycle1,diurnalCycle2)
-
-#ggplot(data = plotData) +
-#  geom_line(mapping = aes(x = time, y = diurnalCycle1, group = 1, color = "blue")) +
-#  geom_line(mapping = aes(x = time, y = diurnalCycle2, group = 1, color = "red")) +
-#  scale_colour_manual(labels = c("forecastsW", "forecasts"), values = c("blue", "red")) +
-#  xlab("time") + ylab("radiation")
-
-ggplot(data = plotData) +
-  geom_line(mapping = aes(x = time, y = diurnalCycle1 - diurnalCycle2))
-
-#################################
-##CHECKING FOR 128 RESOLUTION##
-#################################
-
-yearNumber <- 2016
-fnames    <- data.frame(files = list.files(path = paste0(indir, yearNumber), full.names = TRUE), stringsAsFactors = FALSE)
-init_dates  <- unique(gsub("0000_[0-9]{5}_GB", "", gsub("HA38_N25_SOLFC_", "", basename(fnames$files))))
-
-rastfiles <- as.matrix(fnames[grepl(init_dates[30], fnames$files), ])
-newraster1 <- import_grib(rastfiles[12], param = 275, adate = "20180110", alt = "01")
-newraster2 <- import_grib(rastfiles[12], param = 276, adate = "20180110", alt = "01")
-newraster3 <- import_grib(rastfiles[13], param = 275, adate = "20180110", alt = "01")
-newraster4 <- import_grib(rastfiles[13], param = 276, adate = "20180110", alt = "01")
-
-#gplot(newraster) + 
-#  geom_tile(aes(fill = value)) +
-#  geom_polygon(data = worldmap, aes(x=long, y = lat, group = group), fill = NA, color = "black", size = 0.1, linetype = "dashed") +
-#  scale_fill_distiller("", palette = "Spectral", direction=1, na.value = "white") +
-#  coord_fixed(xlim = c(3.4, 7.1), ylim = c(50.8, 53.5))
-
-tmpdf <- data.frame(xcoor = coordinates(newraster3)[,1], ycoor = coordinates(newraster3)[,2], 
-                    SWbottomcum = values(newraster3), SWtopcum = values(newraster4),
-                    SWbottom = (values(newraster3) - values(newraster1))/3600, SWtop = (values(newraster4) - values(newraster2))/3600)
-
-comparison1      <- init_dates[10]
-comparison2      <- extract(newraster3, SpatialPoints(cbind(4.927, 51.971)))
-
-for (i in 2: as.integer(length(init_dates)/10)){
-  rastfiles  <- as.matrix(fnames[grepl(init_dates[10*i], fnames$files), ])
-  newraster3 <- import_grib(rastfiles[13], param = 275, adate = "20180110", alt = "01")
-  comparison1 <- c(comparison1,init_dates[10*i])
-  comparison2 <- c(comparison2,extract(newraster3, SpatialPoints(cbind(4.927, 51.971))))
-}
-
-yearNumber <- 2017
-fnames    <- data.frame(files = list.files(path = paste0(indir, yearNumber), full.names = TRUE), stringsAsFactors = FALSE)
-init_dates  <- unique(gsub("0000_[0-9]{5}_GB", "", gsub("HA38_N25_SOLFC_", "", basename(fnames$files))))
-
-for (i in 1: as.integer(length(init_dates)/10)){
-  rastfiles  <- as.matrix(fnames[grepl(init_dates[10*i], fnames$files), ])
-  newraster3 <- import_grib(rastfiles[13], param = 275, adate = "20180110", alt = "01")
-  comparison1 <- c(comparison1,init_dates[10*i])
-  comparison2 <- c(comparison2,extract(newraster3, SpatialPoints(cbind(4.927, 51.971))))
-}
-
-yearNumber <- 2018
-fnames    <- data.frame(files = list.files(path = paste0(indir, yearNumber), full.names = TRUE), stringsAsFactors = FALSE)
-init_dates  <- unique(gsub("0000_[0-9]{5}_GB", "", gsub("HA38_N25_SOLFC_", "", basename(fnames$files))))
-
-for (i in 1: as.integer(length(init_dates)/10)){
-  rastfiles  <- as.matrix(fnames[grepl(init_dates[10*i], fnames$files), ])
-  newraster3 <- import_grib(rastfiles[13], param = 275, adate = "20180110", alt = "01")
-  comparison1 <- c(comparison1,init_dates[10*i])
-  comparison2 <- c(comparison2,extract(newraster3, SpatialPoints(cbind(4.927, 51.971))))
-}
-
-comparison <- data.frame(date = comparison1, radiation = comparison2, 
-                         radiation128 = comparison2/128, test1 = as.integer(comparison2/128) == comparison2/128,
-                         radiation64 = comparison2/64, test2 = as.integer(comparison2/64) == comparison2/64)
-
-#################################
-##CHECKING FOR ZERO DIRECT RADIATION##
-#################################
-
-rastfiles <- as.matrix(fnames[grepl(init_dates[30], fnames$files), ])
-
-newraster1 <- import_grib(rastfiles[1], param = 275, adate = "20180110", alt = "01")
-newraster2 <- import_grib(rastfiles[1], param = 276, adate = "20180110", alt = "01")
-testdiurnalCycle <- data.frame(date = init_dates[30], lt = i-1, SWbottom <- extract(newraster1, SpatialPoints(cbind(9.68012500, 55.70508))),
-                               SWtop <- extract(newraster2, SpatialPoints(cbind(9.68012500, 55.70508))))
-
-for (i in 2:49){
-  newraster1 <- import_grib(rastfiles[i], param = 275, adate = "20180110", alt = "01")
-  newraster2 <- import_grib(rastfiles[i], param = 276, adate = "20180110", alt = "01")
-  testdiurnalCycle <- rbind(testdiurnalCycle, c(init_dates[30], i-1, extract(newraster1, SpatialPoints(cbind(9.68012500, 55.70508))),
-                                                extract(newraster2, SpatialPoints(cbind(9.68012500, 55.70508)))))
-}
-
-testdiurnalCycle <- data.frame(testdiurnalCycle, as.numeric(testdiurnalCycle[[3]])/128, as.numeric(testdiurnalCycle[[4]])/128)
-testdiurnalCycle <- data.frame(testdiurnalCycle, c(0,diff(as.numeric(testdiurnalCycle[[3]]))), c(0,diff(as.numeric(testdiurnalCycle[[4]]))))
-
-ggplot(data = testdiurnalCycle) +
-  geom_line(mapping = aes(x = as.numeric(lt), y = c.0..diff.as.numeric.testdiurnalCycle..3.....)) +
-  geom_line(mapping = aes(x = as.numeric(lt), y = c.0..diff.as.numeric.testdiurnalCycle..4.....))
-
-#################################
-##TESTING FOR THE NET CLEAR SKY INDEX##
-#################################
-
-forecastData <- readRDS(file = paste0("/nobackup/users/bakker/Data/radiationvariables/",dateNumber,".rds"))
-forecastData <- filter(forecastData, xcoor == xcoordinate, ycoor = ycoordinate, as.numeric(lt) <= 25)
-SWclearskyTop <- c(0,diff(forecastData[[9]])/3600)
-SWclearskyBottom <- c(0,diff(forecastData[[8]])/3600)
-SWTop <- c(0,diff(forecastData[[6]])/3600)
-SWBottom <- c(0,diff(forecastData[[5]])/3600)
-SWglobal <- c(0,diff(forecastData[[7]])/3600)
-
-SWclearskyBottom <- (1/0.77)*SWclearskyBottom
-
-time <- c(0:24)
-plotData <- data.frame(time,SWclearskyTop, SWclearskyBottom, SWTop, SWBottom, SWglobal)
-
-for (i in 1:length(plotData[[2]])){
-  if (is.na(plotData[[2]][[i]]) == FALSE){
-    if (plotData[[2]][[i]] < 1){
-      plotData[[1]][[i]] <- NA
-      plotData[[2]][[i]] <- NA
-      plotData[[3]][[i]] <- NA
-      plotData[[4]][[i]] <- NA
-      plotData[[5]][[i]] <- NA
-      plotData[[6]][[i]] <- NA
-    }
-  }
-}
-
-new_plotData <- data.frame(time = plotData$time,
-                           data = c(plotData$SWclearskyTop, plotData$SWclearskyBottom, plotData$SWTop, plotData$SWBottom, plotData$SWglobal),
-                           radType = rep(c('SWclearskyTop', 'SWclearskyBottom', 'SWTop', 'SWBottom', 'SWglobal'), each = nrow(plotData)))
-
-ggplot(data = na.omit(new_plotData)) +
-  geom_line(mapping = aes(x = time, y = data, color = radType)) +
-  scale_colour_manual( values = c("blue", "red", "green", "yellow", "black")) +
-  xlab("time") + ylab("radiation") + ggtitle("20180225")
-
-ggplot(data = na.omit(subset(new_plotData, radType %in% c('SWclearskyBottom','SWglobal')))) +
-  geom_line(mapping = aes(x = time, y = data, color = radType)) +
-  xlab("time") + ylab("radiation") + ggtitle("20180225")
-
-#################################
-##TESTING FOR THE ZENITH ANGLE##
-#################################
-
-ZenithAngles1 <- c(1:24)
-ZenithAngles2 <- c(1:24)
-
-for (i in 1:24){
-  ZenithAngles1[i] <- zenithAngle(i,20160621, 51.967, 4.917,0,1)
-  ZenithAngles2[i] <- zenithAngle(i,20160621, 51.967, 4.917,0,2)
-}
-
-ZenithAngles3 <- acos(c(-0.219592, -0.152665, -0.0539943, 0.0696992, 0.209988, 0.357315, 0.501643, 0.633138, 0.742843, 0.823283, 0.868978, 0.876815, 0.846259, 
-                    0.779392, 0.680769, 0.557109, 0.416837, 0.269507, 0.125159, -0.0063754, -0.116134, -0.19664, -0.242408, -0.250506))/pi*180
-
-time = c(1:24)
-plotData <- data.frame(time = plotData$time,
-                           data = c(plotData$ZenithAngles1, plotData$ZenithAngles2, plotData$ZenithAngles3),
-                           radType = rep(c('ZenithAngles1', 'ZenithAngles2', 'ZenithAngles3'), each = length(time)))
-
-ggplot(data = na.omit(plotData)) +
-  geom_line(mapping = aes(x = time, y = data, color = radType)) +
-  scale_colour_manual(values = c("blue", "red", "green")) +
-  xlab("Time") + ylab("Zenith angle")
-
-#ggplot(data = plotData) +
-#  geom_line(mapping = aes(x = time, y = ZenithAngles1 - ZenithAngles2))
-
-#################################
-##TESTING FOR THE CLEAR SKY OR LARGE ERROR DAYS
-#################################
-Times <- c(5:19)
-
-for (k in 1:length(init_dates)){
-  observations <- filter(observationData, Station == stationData[[2]][[stationPlace]], Date == init_dates[k])[[4]][Times]
-  clearskyRadiations <- filter(clearskyData, Station == stationData[[2]][[stationPlace]], Date == init_dates[k])[[4]][Times]
-  
-  forecastData <- readRDS(file = paste0("/nobackup/users/bakker/Data/radiationvariables/",init_dates[k],".rds"))
-  forecasts <- diff(filter(forecastData, xcoor == xcoordinate, ycoor == ycoordinate)[[4]][c(1,Times-3)])/3600
-
-plotData <- data.frame(time = Times, data = c(observations,forecasts), Type = rep(c("observations", "forecasts"), each = length(Times)))
-
-plot <- ggplot(data = plotData) +
-  geom_line(mapping = aes(x = plotData$time, y = data, color = Type)) +
-  scale_colour_manual(values = c("blue", "red")) +
-  xlab("Time") + ylab("Radiation") + ggtitle(paste0(init_dates[k]))
-print(plot)
-}
+plotcolors <- c("blue", "red", "green", "orange", "purple", "black", "steelblue1")
+plotlines <- c("solid", "dashed")
+plotsettings <- list(rep(plotcolors, each = length(plotlines)), rep(plotlines, length(plotcolors)))
 
 #################################
 ##TESTING FOR THE DIFFERENT SOURCES OF OBSERVATION DATA
@@ -299,90 +99,6 @@ ggplot(data = plotData) +
   geom_line(mapping = aes(x = time, y = data, color = obsType)) +
   scale_colour_manual(values = c("blue", "green", "orange", "red", "black")) +
   xlab("Time") + ylab("Radiation") + ggtitle("20170601-20170630")
-
-#################################
-##TESTING FOR THE REGRESSION OF ALL THE VARIABLES
-#################################
-dateNumber <- 20171021
-observations <- filter(observationData, Date == dateNumber, Station == stationData[[2]][[stationPlace]])[[4]][4:20]
-clearsky <- filter(clearskyData, Date == dateNumber, Station == stationData[[2]][[stationPlace]])[[4]][4:20]
-
-forecastData <- readRDS(file = paste0("/nobackup/users/bakker/Data/radiationvariables/", dateNumber, ".rds"))
-forecastData <- filter(forecastData, xcoor == xcoordinate, ycoor == ycoordinate)
-diurnalCycle <- diff(c(0,forecastData[[4]][1:17]))/3600
-
-variableData <- readRDS(file = paste0("/nobackup/users/bakker/Data/cloudcovervariables/", dateNumber, ".rds"))
-variableData <- filter(variableData, xcoor == xcoordinate, ycoor == ycoordinate)
-variable <- variableData[[6]][1:17]
-
-variableData <- readRDS(file = paste0("/nobackup/users/bakker/Data/cloudwatervariables/", dateNumber, ".rds"))
-variableData <- filter(variableData, xcoor == xcoordinate, ycoor == ycoordinate)
-variable2 <- variableData[[5]][1:17]
-
-time <- c(4:20)
-
-plotData <- data.frame(observations, diurnalCycle, clearsky, variable, variable2, time)
-for (i in 1:(length(plotData[[1]]))){
-  if (plotData[[1]][[i]] < 10){
-    for (j in 1:(length(plotData)-3)){
-      plotData[[j]][[i]] <- 0
-    }
-  }
-}
-
-plotData <- data.frame(time = plotData$time,
-                           data = c(plotData$observations, plotData$diurnalCycle, plotData$clearsky, plotData$variable, plotData$variable2),
-                           radType = rep(c('observations', 'diurnalCycle', 'clearsky','CC', 'CW'), each = nrow(plotData)))
-
-p1 <- ggplot(data = subset(plotData, radType %in% c('observations','diurnalCycle','clearsky'))) +
-  geom_line(mapping = aes(x = time, y = data, color = radType)) +
-  scale_colour_manual( values = c("blue", "red", "green")) +
-  xlab("time") + ylab("radiation")
-
-p2 <- ggplot(data = subset(plotData, radType %in% c('CC','CW'))) +
-  geom_line(mapping = aes(x = time, y = data, color = radType)) +
-  scale_colour_manual( values = c("black","blue")) +
-  xlab("time") + ylab("variable")
-
-grid.arrange(p1, p2, ncol = 1)
-
-#################################
-##TESTING FOR THE REGRESSION OF ALL THE VARIABLES ON CLEAR SKY DAYS
-#################################
-clearskyHours <-readRDS("/usr/people/bakker/kilianbakker/Data/clearskyhours.rds")
-clearskies <- which(clearskyHours == 1, arr.ind = T)
-cutoff <- max(which(clearskies[,2] <= length(init_dates)))
-clearskies <- clearskies[1:cutoff,]
-
-tempvariableNamesCorr <- c(variableNames[Includedvariables], "T_Low", "T_Medium", "T_High", "RH_Low", "RH_Medium", "RH_High")
-variableNamesCorr <- c("Global", "PW_Total", "AOD_500", "Ang_exp", "Ozone")
-stationPlace <- 23
-
-AllvariableData <- readRDS(file  = "/usr/people/bakker/kilianbakker/Data/Allstations_variables")
-
-observations <- c(1:length(clearskies[,1]))
-forecasts <- c(1:length(clearskies[,1]))
-CSR <- c(1:length(clearskies[,1]))
-PW <- c(1:length(clearskies[,1]))
-AOD <- c(1:length(clearskies[,1]))
-ANG <- c(1:length(clearskies[,1]))
-OZ <- c(1:length(clearskies[,1]))
-for (i in 1:length(clearskies[,1])){
-  observations[i] <- filter(observationData, Date == init_dates[clearskies[i,2]], Station == stationData[[2]][[stationPlace]])[[4]][clearskies[i,1]]
-  CSR[i] <- ClearskyRadiation(clearskies[i,1] + 0.5, init_dates[clearskies[i,2]],stationData[[4]][stationPlace],stationData[[3]][stationPlace],0, 1, 1)
-
-  variableData <- AllvariableData[length(init_dates)*(stationPlace - 1) + clearskies[i,2],  which(tempvariableNamesCorr %in% variableNamesCorr), clearskies[i,1]]
-  forecasts[i] <- variableData[1]
-  PW[i] <- variableData[2]
-  AOD[i] <- variableData[3]
-  ANG[i] <- variableData[4]
-  OZ[i] <- variableData[5]
-}
-  
-plotData <- data.frame(observations, forecasts = forecasts*CSR, CSR, PW, AOD, ANG, OZ)
-
-ggplot(data = plotData) +
-  geom_point(mapping = aes(x = observations, y = OZ))
 
 #################################
 ##TESTING FOR THE DISTRIBUTION OF OBSERVATIONS
@@ -512,47 +228,165 @@ fit <- stepGAICAll.B(fit, what="sigma", scope = list(upper = as.formula(paste0("
 summary(fit)
 
 #################################
-##TESTING FOR THE PREDICTION SETS
+##TESTING FOR THE VARIABLES
+#################################
+variableNames <- c("Global", "Direct_SURF", "Direct_TOA", "NCS_SURF", "NCS_TOA", "CC_Total", "CC_Low", "CC_Medium", "CC_High", "CW_Total", "CW_Low", 
+                   "CW_Medium", "CW_High", "PW_Total", "PW_Low", "PW_Medium", "PW_High", "Rain", "AOD_500", "Ang_exp", "Ozone", "T_Low", "T_Medium", "T_High", 
+                   "RH_Low", "RH_Medium", "RH_High", "CosZenith", "Lat", "Lon", "DistToCoast", "DistToWater", "DistToInland", "DoY")
+
+AllvariableData <- readRDS(file  = "/usr/people/bakker/kilianbakker/Data/variables_3x3gridbox_3lt.rds")
+
+variableNumber <- 21
+Times <- c(1:15)
+stationPlace <- 23
+dateNumbers <- c(20160401,20160402,20160403,20160404,20160505)
+dateIndices <- which(init_dates %in% dateNumbers)
+Data <- c()
+for (i in 1:length(dateIndices)){
+  Data <- c(Data, AllvariableData[dateIndices[i],stationPlace, Times,variableNumber])
+}
+plotData <- data.frame(time = Times, data = Data, type = rep(as.character(dateNumbers), each = length(Times)))
+tempPlot <- ggplot(data = plotData) + 
+  geom_line(mapping = aes(x = time, y = data, color = type)) +
+  scale_colour_manual(values = plotcolors[1:length(dateNumbers)]) +
+  xlab("Time") + ylab(variableNames[variableNumber]) + ggtitle(paste0(variableNames[variableNumber]," comparison"))
+
+ggsave(paste0(variableNames[variableNumber],"_comparison.pdf"), plot = tempPlot, device = "pdf", path = "/usr/people/bakker/kilianbakker/plots/variable_plots/")
+
+#################################
+##TESTING FOR REGRESSION BETWEEN VARIABLES
+#################################
+variableNames <- c("Global", "Direct_SURF", "Direct_TOA", "NCS_SURF", "NCS_TOA", "CC_Total", "CC_Low", "CC_Medium", "CC_High", "CW_Total", "CW_Low", 
+                   "CW_Medium", "CW_High", "PW_Total", "PW_Low", "PW_Medium", "PW_High", "Rain", "AOD_500", "Ang_exp", "Ozone", "T_Low", "T_Medium", "T_High", 
+                   "RH_Low", "RH_Medium", "RH_High", "CosZenith", "Lat", "Lon", "DistToCoast", "DistToWater", "DistToInland", "DoY")
+
+AllvariableData <- readRDS(file  = "/usr/people/bakker/kilianbakker/Data/variables_3x3gridbox_3lt.rds")
+
+clearskyHours <-readRDS("/usr/people/bakker/kilianbakker/Data/clearskyhours.rds")
+clearskies <- which(clearskyHours == 1, arr.ind = T)
+
+variableNumber <- 21
+Times <- c(1:15)
+leadTimes <- c(5:19,29:43)
+stationPlace <- 23
+tempclearskies <- clearskies[(clearskies[,1] %in% leadTimes[Times]) & (clearskies[,2] <= length(init_dates)),]
+observations <- c()
+forecasts <- c()
+variableData <- c()
+for (cs in 1:length(tempclearskies[,1])){
+  date <- unname(tempclearskies[cs,2])
+  time <- Times[which(leadTimes == unname(tempclearskies[cs,1]))]
+#for (date in 1:length(init_dates)){
+#  for (time in Times){
+    observations <- c(observations, filter(observationData, Date %in% init_dates[date], Station == stationData[[2]][stationPlace], Time %in% leadTimes[time])[[4]])
+    forecasts <- c(forecasts, AllvariableData[date,stationPlace,time,1])
+    variableData <- c(variableData, AllvariableData[date,stationPlace,time,variableNumber])
+#  }
+#}
+}
+
+plotData <- data.frame(RadiationError = observations - forecasts, variableData)
+tempPlot <- FitPlot(plotData, 0.25, -200, 40) + xlab(variableNames[variableNumber]) + ylab("Radiation Error") + ggtitle(paste0(variableNames[variableNumber]," scatterplot"))
+
+ggsave(paste0(variableNames[variableNumber],"_scatterplot_CSdays.pdf"), plot = tempPlot, device = "pdf", path = "/usr/people/bakker/kilianbakker/plots/regression_plots/particles/")
+
+#################################
+##TESTING FOR IMPORTANCES
 #################################
 
-RegMethodTexts <- c("RAW", "GLM",  "Lasso", "RF", "GBM", "NN")
-RegMethods <- c(0,1,3,4,5,6)
-clearskydateNumbers <- c(20160605,20160817,20160824,20160825,20160913,20160914,20161005,20161128, 20170409,20170526, 20171015, 20180207,20180225)
-tmprds <- readRDS(file = "/usr/people/bakker/kilianbakker/Data/largeErrorhours.rds")
-largeerrordateNumbers <- init_dates[as.numeric(which(apply(tmprds, 2, mean, na.rm = T) > 0.75))]
-dateNumbers <- largeerrordateNumbers
+variableNames <- c("Global", "Direct_SURF", "Direct_TOA", "NCS_SURF", "NCS_TOA", "CC_Total", "CC_Low", "CC_Medium", "CC_High", "CW_Total", "CW_Low", 
+                   "CW_Medium", "CW_High", "PW_Total", "PW_Low", "PW_Medium", "PW_High", "Rain", "AOD_500", "Ang_exp", "Ozone", "T_Low", "T_Medium", "T_High", 
+                   "RH_Low", "RH_Medium", "RH_High", "CosZenith", "Lat", "Lon", "DistToCoast", "DistToWater", "DistToInland", "DoY")
 
-clearskyRadiations <- array(0, c(15, length(dateNumbers)))
-observations <- array(0, c(15,length(dateNumbers)))
-forecasts <- array(0, c(15,length(dateNumbers), length(RegMethods)+1))
-Times <- c(5:19)
-for (j in 1:length(dateNumbers)){
-  clearskyRadiations[,j] <- filter(clearskyData, Station == stationData[[2]][[stationPlace]], Date == dateNumbers[j])[[4]][Times]
-  observations[,j] <- filter(observationData, Station == stationData[[2]][[stationPlace]], Date == dateNumbers[j])[[4]][Times]
+Method <- "GBM"
+Importances1 <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/",Method,"imp.rds"))
+Importances2 <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/",Method,"imp_v2.rds"))
+tempImportances <- array(0, c(length(variableNames),2))
+for (var in 1:length(variableNames)){
+  tempImportances[var,1] <- sum(Importances1[,,,,var], na.rm = T)
+  tempImportances[var,2] <- sum(Importances2[,,,,var], na.rm = T)
+}
   
-  for (RegMethod in 1:length(RegMethods)){
-    forecastData <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets/PS_2_1_", RegMethods[RegMethod], "_0.rds"))
-    forecasts[,j,RegMethod] <- forecastData[which(init_dates == dateNumbers[j]),Times-4]
-  }
-  forecastData <- readRDS(file = paste0("/nobackup/users/bakker/Data/radiationvariables/",dateNumbers[j],".rds"))
-  tempforecasts <- filter(forecastData, xcoor == xcoordinate, ycoor == ycoordinate)[[4]]
-  forecasts[,j,length(RegMethods) + 1] <- diff(tempforecasts[1:16])/3600
+version <- 2
+plotData <- data.frame(Names =  variableNames[order(tempImportances[,version])], Importance = tempImportances[,version][order(tempImportances[,version])])
+plotData$Names <- factor(plotData$Names,levels = variableNames[order(tempImportances[,version])])
+tempPlot <- ggplot(data = plotData) +
+  geom_bar(aes(x = Names, y = Importance), stat = "identity") +
+  coord_flip() + xlab("predictors") + ylab("Importance") + ggtitle(paste0("Importance measure from ", Method))
+print(tempPlot)
+ggsave(paste0("importances_",Method, "_v",version,".pdf"), plot = tempPlot, device = "pdf", path = "/usr/people/bakker/kilianbakker/plots/")
+
+#################################
+##TESTING FOR THE PREDICTION SETS
+#################################
+clearskyHours <-readRDS("/usr/people/bakker/kilianbakker/Data/clearskyhours.rds")
+clearskyHours <- clearskyHours[,which(as.numeric(colnames(clearskyHours)) %in% init_dates)]
+LargeErrorHours <-readRDS("/usr/people/bakker/kilianbakker/Data/largeErrorhours.rds")
+LargeErrorHours <- LargeErrorHours[,which(as.numeric(colnames(LargeErrorHours)) %in% init_dates)]
+
+stepsize <- 1/50
+quants <- seq(stepsize,1-stepsize, stepsize)
+seasons <- list(c(201612,201701,201702,201712,201801,201802), c(201604,201605,201703,201704,201705,201803),
+                c(201606,201607,201608,201706,201707,201708), c(201609,201610,201611,201709,201710,201711))
+seasonTexts <- c("winter", "spring", "summer", "fall", "year")
+fitMethodTexts <- c("seasons-fit", "year-fit")
+leadTimesDays <- list(c(5:19), c(29:43))
+TimeIndices <- list(c(1:15),c(16:30))
+leadTimes <- c(leadTimesDays[[1]],leadTimesDays[[2]])
+leadTimesTexts <- c(leadTimesDays[[1]],"-",leadTimesDays[[2]])
+settings <- list(c(2,1,0,0),c(2,1,1,0),c(2,1,3,0),c(2,1,4,0),c(2,1,5,0),c(2,1,6,0),c(2,2,0,0),c(2,2,1,-1),c(2,2,1,0),c(2,2,1,1),c(2,2,1,2),c(2,2,1,3),c(2,2,3,0),c(2,2,4,0),c(2,2,5,0),c(2,2,6,0))
+MethodsTexts <- c("RAW", "GLM",  "Lasso", "RF", "GBM", "NN", "RAW", "NO_0", "NO_1", "NO_+", "NOtr[min,max)", "NOtr[0,Inf]", "Lasso", "QRF", "GBM", "QRNN")
+plotQuantiles <- c(0.1,0.5,0.9)
+stationPlaces <- c(1:30)
+
+tempsetting <- c(15)
+tempMethodsTexts <- MethodsTexts[tempsetting]
+
+ContMethod <- settings[[tempsetting]][1]
+ProbMethod <- settings[[tempsetting]][2]
+RegMethod <- settings[[tempsetting]][3]
+DistMethod <- settings[[tempsetting]][4]
+
+tempforecasts <- array(NA, c(length(init_dates), length(stationPlaces), length(leadTimes), length(quants),length(fitMethodTexts)))
+tempforecasts[,,,,1] <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets2/PS_allstations_",ContMethod, "_" ,ProbMethod, "_", RegMethod, "_", DistMethod, ".rds"))
+tempforecasts[,,,,2] <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets2/PS_allstations_year_",ContMethod, "_" ,ProbMethod, "_", RegMethod, "_", DistMethod, ".rds"))
+Rawforecasts <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets2/PS_allstations_2_2_0_0.rds"))
+
+tempPlaces <- 23
+tempTimes <- c(7:15)
+tempDates <- 20170624
+DateIndices <- which(init_dates %in% tempDates)
+fit_method <- 1
+Labels <- c("Obs", "RAW", tempMethodsTexts)
+observations <- array(NA, c(length(DateIndices), length(tempTimes)))
+rawforecast <- Rawforecasts[DateIndices, tempPlaces, tempTimes, which(quants == 0.5)]
+for (date in 1:length(DateIndices)){
+  observations[date,] <- filter(observationData, Date %in% tempDates[date], Time %in% leadTimes[tempTimes], Station %in% stationData[[2]][tempPlaces])[[4]]
+}
+CImiddle <- tempforecasts[DateIndices,tempPlaces,tempTimes,which(quants == 0.5),fit_method]
+CImin <- tempforecasts[DateIndices,tempPlaces,tempTimes,which(quants == plotQuantiles[1]),fit_method]
+CImax <- tempforecasts[DateIndices,tempPlaces,tempTimes,which(quants == plotQuantiles[length(plotQuantiles)]),fit_method]
+
+if (length(DateIndices) > 1){
+  observations <- apply(observations,2,mean, na.rm = T)
+  rawforecast <- apply(rawforecast,2,mean, na.rm = T)
+  CImiddle <- apply(CImiddle,2,mean, na.rm = T)
+  CImin <- apply(CImin,2,mean, na.rm = T)
+  CImax <- apply(CImax,2,mean, na.rm = T)
 }
 
-ColorRowMean <- 1
-meanForecasts <- array(0, c(length(Times), length(RegMethods)+1))
-for (RegMethod in 1:(length(RegMethods)+1)){
-  meanForecasts[,RegMethod] <- apply(as.matrix(forecasts[,,RegMethod]),ColorRowMean,sum,na.rm = T)/length(dateNumbers)
-}
+plotData <- data.frame(time = leadTimes[tempTimes], data = c(observations, rawforecast, CImiddle), labels = rep(Labels, each = length(tempTimes)))
 
-RadiationData <- data.frame(apply(clearskyRadiations,ColorRowMean,mean), apply(observations, ColorRowMean, mean), meanForecasts)
-plotData <- data.frame(time = Times, data = c(as.matrix(RadiationData[,2:9])),
-                       radType = rep(c("clearskyRadiations", "observations", RegMethodTexts, "Raw2")[2:9], each = length(Times)))
+tempPlot <- ggplot(data = plotData) +
+  geom_line(mapping = aes(x = time, y = data, color = labels)) +
+  scale_colour_manual(values = plotcolors[1:length(Labels)]) +
+  geom_ribbon(data = data.frame(time = leadTimes[tempTimes], CImin, CImax), mapping = aes(x = time, ymin = CImin, ymax = CImax), fill="gray", alpha="0.5") +
+  xlab("time") + ylab("Radiation (W/m2)") + ggtitle(paste0(tempDates, fitMethodTexts[fit_method]))
 
-ggplot(data = plotData) +
-  geom_line(mapping = aes(x = time, y = data, color = radType)) +
-  scale_colour_manual(values = plotcolors[1:length(colnames(RadiationData[,2:9]))]) +
-  xlab("Time") + ylab("Radiation") + ggtitle(dateNumbers)
+#tempPlot <- ggarrange(tempPlot[[1]], tempPlot[[2]], tempPlot[[3]], ncol = 3, nrow = 1, common.legend = TRUE, legend = "right")
+print(tempPlot)
+ggsave(paste0(tempMethodsTexts, "_", tempDates, "_comparison_", fit_method, ".pdf"), plot = tempPlot, device = "pdf", 
+       path = "/usr/people/bakker/kilianbakker/plots/comparison_plots/", width = 20, height = 14, units = "cm")
 
 #################################
 ##TESTING FOR THE (SKILL) SCORES
@@ -561,114 +395,140 @@ clearskyHours <-readRDS("/usr/people/bakker/kilianbakker/Data/clearskyhours.rds"
 clearskyHours <- clearskyHours[,which(as.numeric(colnames(clearskyHours)) %in% init_dates)]
 LargeErrorHours <-readRDS("/usr/people/bakker/kilianbakker/Data/largeErrorhours.rds")
 LargeErrorHours <- LargeErrorHours[,which(as.numeric(colnames(LargeErrorHours)) %in% init_dates)]
+init_dates_CS <- c(20160605,20160817,20160824,20160825,20160913,20160914,20161005,20161128,20170409,20170525,20170526,20171015,20180207,20180225)
+init_dates_LE <- c(20160929,20170414,20170516,20170624,20170930,20171017,20171024,20171031,20171120,20171224,20171231,20180123)
 
-typeCS <- 1
-typeZenith <- 1
-discretizeWidth <- 0.1
+thresholds <- c(0.8)
+NumberofBins <- 10
 stepsize <- 1/50
 quants <- seq(stepsize,1-stepsize, stepsize)
 seasons <- list(c(201612,201701,201702,201712,201801,201802), c(201604,201605,201703,201704,201705,201803),
                 c(201606,201607,201608,201706,201707,201708), c(201609,201610,201611,201709,201710,201711))
-ProbMethodTexts <- c("Deterministic (RMSE SS)", "Probabilistic (CRPSS)")
+seasonTexts <- c("winter", "spring", "summer", "fall", "year", "CSdays", "CShours", "LEdays", "LEhours")
+fitMethodTexts <- c("seasons-fit", "year-fit")
+seasonPlotLimits <- list(c(0.4,0.65),c(0.3,0.65),c(0.2,0.55),c(0.4,0.75),c(0.3,0.75),c(0.25,0.75),c(0.25,0.75),c(0,0.75),c(0,0.75))
 leadTimesDays <- list(c(5:19), c(29:43))
-leadTimeIndices <- list(c(leadTimesDays[[1]]-4),c(leadTimesDays[[2]]-13))
+TimeIndices <- list(c(1:15),c(16:30))
 leadTimes <- c(leadTimesDays[[1]],leadTimesDays[[2]])
 leadTimesTexts <- c(leadTimesDays[[1]],"-",leadTimesDays[[2]])
-settings <- list(c(2,1,0,0),c(2,1,1,0),c(2,1,3,0),c(2,1,4,0),c(2,1,5,0),c(2,1,6,0),c(2,2,0,0),c(2,2,1,1),c(2,2,1,2),c(2,2,1,3),c(2,2,3,0),c(2,2,4,0),c(2,2,5,0),c(2,2,6,0))
-MethodsTexts <- c("RAW", "GLM",  "Lasso", "RF", "GBM", "NN", "RAW", "NO", "NOtr[min,max)", "NOtr[0,Inf]", "Lasso", "QRF", "GBM", "QRNN")
-settings <- settings[7:13]
-MethodsTexts <- MethodsTexts[7:13]
+settings <- list(c(2,1,0,0),c(2,1,1,0),c(2,1,3,0),c(2,1,4,0),c(2,1,5,0),c(2,1,6,0),c(2,2,0,0),c(2,2,1,-1),c(2,2,1,0),c(2,2,1,1),c(2,2,1,2),c(2,2,1,3),c(2,2,3,0),c(2,2,4,0),c(2,2,5,0),c(2,2,6,0))
+MethodsTexts <- c("RAW", "GLM",  "Lasso", "RF", "GBM", "NN", "RAW", "NO_0", "NO_1", "NO_+", "NOtr[min,max)", "NOtr[0,Inf]", "Lasso", "QRF", "GBM", "QRNN")
 
-stationPlace <- 23
-Scores <- array(NA, c(length(leadTimes), length(settings),4))
-Skillscores <- array(NA, c(length(leadTimes), length(settings),4))
-for (setting in 1:length(settings)){
+seasonOptions <- c(1:5)
+stationPlaces <- c(1:30)
+Times <- c(1:length(leadTimes))
+Scores <- array(NA,c(length(leadTimes),length(stationPlaces),length(settings),length(seasonOptions),length(thresholds),length(fitMethodTexts),NumberofBins))
+Skillscores <- array(NA,c(length(leadTimes),length(stationPlaces),length(settings),length(seasonOptions),length(thresholds),length(fitMethodTexts),NumberofBins))
+
+tempsettings <- c(7,10:12,14:16)
+tempMethodsTexts <- MethodsTexts[tempsettings]
+tempPlaces <- c(23)
+tempTimes <- c(8)
+ScoringMethod <- c(1,"ReliabilityPlot")
+
+for (setting in tempsettings){
   ContMethod <- settings[[setting]][1]
   ProbMethod <- settings[[setting]][2]
-  RegMethod <- settings[[setting]][3]
+  RegMethod  <- settings[[setting]][3]
   DistMethod <- settings[[setting]][4]
-
-  importingforecasts <- 1
-for (time in 1:length(leadTimes)){
-  leadTime <- leadTimes[time]
-  if (leadTime <= 24){
-    temp_init_dates <- init_dates
-  } else {
-    temp_init_dates <- c(1:length(init_dates))
-    for (d in 1:length(init_dates)){
-      tempDate <- paste0(substr(init_dates[d],1,4), "-", substr(init_dates[d],5,6), "-", substr(init_dates[d],7,8))
-      temp_init_dates[d] <- as.numeric(gsub("-","",as.Date(tempDate) + 1))
+  
+  tempforecasts<- array(NA, c(length(init_dates), length(stationPlaces), length(leadTimes), length(quants),length(fitMethodTexts)))
+  tempforecasts[,,,,1] <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets2/PS_allstations_",ContMethod, "_" ,ProbMethod, "_", RegMethod, "_", DistMethod, ".rds"))
+  tempforecasts[,,,,2] <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets2/PS_allstations_year_",ContMethod, "_" ,ProbMethod, "_", RegMethod, "_", DistMethod, ".rds"))
+  
+  for (time in tempTimes){
+    leadTime <- leadTimes[time]
+    if (leadTime <= 24){
+      temp_init_dates <- init_dates
+    } else {
+      temp_init_dates <- c(1:length(init_dates))
+      for (d in 1:length(init_dates)){
+        tempDate <- paste0(substr(init_dates[d],1,4), "-", substr(init_dates[d],5,6), "-", substr(init_dates[d],7,8))
+        temp_init_dates[d] <- as.numeric(gsub("-","",as.Date(tempDate) + 1))
+      }
     }
-  }
-
-  observations <- filter(observationData, Station %in% stationData[[2]][stationPlace], Time == (leadTime %% 24), Date %in% temp_init_dates)[[4]]
-  CSR <- filter(clearskyData, Station %in% stationData[[2]][stationPlace], Time == (leadTime %% 24), Date %in% temp_init_dates)[[4]]
   
-  #temp_init_dates2 <- c(20160605,20160817,20160824,20160825,20160913,20160914,20161005,20161128, 20170409,20170526, 20171015, 20180207,20180225)
-  #temp_init_dates2 <- init_dates[which(clearskyHours[leadTime,] == 1)]
-  #temp_init_dates2 <- init_dates[which(LargeErrorHours[leadTime,] == 1)]
-  #temp_init_dates2 <- init_dates[floor(init_dates/100) %in% seasons[[season]]]
-  temp_init_dates2 <- init_dates
+    for (place in tempPlaces){
+      stationPlace <- stationPlaces[place]
+      observations <- filter(observationData, Station %in% stationData[[2]][stationPlace], Time == (leadTime %% 24), Date %in% temp_init_dates)[[4]]
+      CSR <- filter(clearskyData, Station %in% stationData[[2]][stationPlace], Time == (leadTime %% 24), Date %in% temp_init_dates)[[4]]
   
-  indices <- which(init_dates %in% temp_init_dates2)
-  if (length(indices) > 0){
-
-  tempobservations <- observations[indices]
-  tempCSR <- CSR[indices]
-
-  if (importingforecasts == 1){
-    forecasts1 <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets/PS_",ContMethod, "_" ,ProbMethod, "_", RegMethod, "_", DistMethod, ".rds"))
-    forecasts2 <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets/PS_year_",ContMethod, "_" ,ProbMethod, "_", RegMethod, "_", DistMethod, ".rds"))
-    forecasts3 <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets/PS_allstations_",ContMethod, "_" ,ProbMethod, "_", RegMethod, "_", DistMethod, ".rds"))
-    forecasts4 <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/predictionsets/PS_allstations_year_",ContMethod, "_" ,ProbMethod, "_", RegMethod, "_", DistMethod, ".rds"))
-    importingforecasts <- 0  
-  }
+      for (season in seasonOptions){
+        if (season <= length(seasons)){
+          temp_init_dates2 <- init_dates[floor(init_dates/100) %in% seasons[[season]]]
+        } else if (season == (length(seasons)+1)){
+          temp_init_dates2 <- init_dates
+        } else if (season == (length(seasons)+2)){
+          temp_init_dates2 <- init_dates_CS #clear sky days
+        } else if (season == (length(seasons)+3)){
+          temp_init_dates2 <- init_dates[which(clearskyHours[leadTime,] == 1)] #clear sky hours
+        } else if (season == (length(seasons)+4)){
+          temp_init_dates2 <- init_dates_LE #large error days
+        } else if (season == (length(seasons)+5)){
+          temp_init_dates2 <- init_dates[which(LargeErrorHours[leadTime,] == 1)] #large error hours
+        }
   
-  if (ProbMethod == 1){
-    clim_scores_det <- calculating_sampleclimatologies(ContMethod, ProbMethod, tempobservations, tempCSR, temp_init_dates2, quants, discretizeWidth)
-    Scores[time,setting,1] <- calculating_scores(ContMethod, ProbMethod, tempobservations, forecasts1[indices,stationPlace,time], DiscretizeWidth)
-    Skillscores[time,setting,1] <- 1 - Scores[time, setting,1]/clim_scores_det
-    Scores[time,setting,2] <- calculating_scores(ContMethod, ProbMethod, tempobservations, forecasts2[indices,stationPlace,time], DiscretizeWidth)
-    Skillscores[time,setting,2] <- 1 - Scores[time, setting,2]/clim_scores_det
-    Scores[time,setting,3] <- calculating_scores(ContMethod, ProbMethod, tempobservations, forecasts3[indices,stationPlace,time], DiscretizeWidth)
-    Skillscores[time,setting,3] <- 1 - Scores[time, setting,3]/clim_scores_det
-    Scores[time,setting,4] <- calculating_scores(ContMethod, ProbMethod, tempobservations, forecasts4[indices,stationPlace,time], DiscretizeWidth)
-    Skillscores[time,setting,4] <- 1 - Scores[time, setting,4]/clim_scores_det
-  } else if (ProbMethod == 2){
-    clim_scores_prob <- calculating_sampleclimatologies(ContMethod, ProbMethod, tempobservations, tempCSR, temp_init_dates2, quants, discretizeWidth)
-    Scores[time,setting,1] <- calculating_scores(ContMethod, ProbMethod, tempobservations, forecasts1[indices,stationPlace,time,], DiscretizeWidth)
-    Skillscores[time,setting,1] <- 1 - Scores[time, setting,1]/clim_scores_prob
-    Scores[time,setting,2] <- calculating_scores(ContMethod, ProbMethod, tempobservations, forecasts2[indices,stationPlace,time,], DiscretizeWidth)
-    Skillscores[time,setting,2] <- 1 - Scores[time, setting,2]/clim_scores_prob
-    Scores[time,setting,3] <- calculating_scores(ContMethod, ProbMethod, tempobservations, forecasts3[indices,stationPlace,time,], DiscretizeWidth)
-    Skillscores[time,setting,3] <- 1 - Scores[time, setting,3]/clim_scores_prob
-    Scores[time,setting,4] <- calculating_scores(ContMethod, ProbMethod, tempobservations, forecasts4[indices,stationPlace,time,], DiscretizeWidth)
-    Skillscores[time,setting,4] <- 1 - Scores[time, setting,4]/clim_scores_prob
-  }
-  }
-}
-}
-
-tempProbMethod <- 2
-MethodsData <- list(list(c(),c()),list(c(),c()),list(c(),c()),list(c(),c()))
-for (i in 1:4){
-  tempMethodsTexts <- c()
-  for (setting in 1:length(settings)){
-    if (settings[[setting]][2] == tempProbMethod){
-      MethodsData[[i]][[1]] <- c(MethodsData[[i]][[1]], Scores[leadTimeIndices[[1]],setting,i], NA, Scores[leadTimeIndices[[2]],setting,i])
-      MethodsData[[i]][[2]] <- c(MethodsData[[i]][[2]], Skillscores[leadTimeIndices[[1]],setting,i], NA, Skillscores[leadTimeIndices[[2]],setting,i])
-      tempMethodsTexts <- c(tempMethodsTexts, MethodsTexts[setting])
+        Dateindices <- which(init_dates %in% temp_init_dates2)
+        if (length(Dateindices) > 1){
+          tempobservations <- observations[Dateindices]
+          tempCSR <- CSR[Dateindices]
+          clim_scores <- calculating_sampleclimatologies(ContMethod, ProbMethod, tempobservations, tempCSR, temp_init_dates2, quants, discretizeWidth)
+  
+          for (k in 1:length(fitMethodTexts)){
+            for (thres in 1:length(thresholds)){
+              threshold <- thresholds[thres]
+              Scores[time,place,setting,season,thres,k,] <- calculating_scores(ScoringMethod, tempobservations, tempforecasts[Dateindices,place,time,,k], tempCSR)
+              Skillscores[time,place,setting,season,thres,k,] <- 1 - Scores[time,place,setting,season,thres,k,]/clim_scores
+              #Skillscores[time,place,setting,season,thres,k] <- 1 - Scores[time,place,setting,season,thres,k]/Scores[time,place,which(MethodsTexts == "RAW")[2],season,k]
+            }
+          }
+        }
+      }
     }
   }
 }
 
-plotData <- data.frame(leadTime = leadTimesTexts, data = MethodsData[[2]],
-                           Method = rep(tempMethodsTexts, each = length(leadTimesTexts)))
+tempseason <- 5
+fit_method <- 1
+RegMethod <- 4
+plotSort <- 3
+saving <- 0
+tempthreshold <- 1
 
-tempPlot <- ggplot(data = plotData) +
-  geom_line(mapping = aes(x = rep(seq(leadTimesTexts),length(tempMethodsTexts)), y = data, color = Method)) +
-  scale_colour_manual(values = plotcolors[1:(length(tempMethodsTexts))]) +
-  scale_x_continuous(breaks=seq(leadTimesTexts), labels=leadTimesTexts) + 
-  ylim(0,0.75) + xlab("leadTime") + ylab("Skill scores") + ggtitle(paste0(ProbMethodTexts[tempProbMethod]))
-print(tempPlot)
-
+if (plotSort == 1){
+  SSData <- c()
+  for (setting in tempsettings){
+    SSData <- c(SSData, Skillscores[TimeIndices[[1]],tempPlaces,setting,tempseason,tempthreshold,fit_method], NA, Skillscores[TimeIndices[[2]],tempPlaces,setting,tempseason,tempthreshold,fit_method])
+  }
+  plotData <- data.frame(data = SSData, Method = rep(tempMethodsTexts, each = length(leadTimesTexts)))
+  plotName <- paste0(ScoringMethod[2], "_", stationData[[1]][tempPlaces], "_ltAll_", seasonTexts[tempseason], "_", fitMethodTexts[fit_method])
+  tempPlot <- LinePlot(plotData, plotName, plotsettings, leadTimesTexts, c(0,0.7))
+  print(tempPlot)
+  if (saving == 1){
+    ggsave(paste0(plotName, ".pdf"), plot = tempPlot, device = "pdf", path = "/usr/people/bakker/kilianbakker/plots/scores_plots/")
+  }
+} else if (plotSort == 2){
+  tempMethodsTexts2 <- array(tempMethodsTexts[RegMethod], c(length(stationPlaces)))
+  for (place in 1:length(stationPlaces)){
+    tempMethodsTexts2[place] <- tempMethodsTexts[which(max(Skillscores[tempTimes,place,tempsettings,tempseason,fit_method],na.rm = T) == Skillscores[tempTimes,place,tempsettings,tempseason,fit_method])]
+  }
+  plotData <- data.frame(latitude = stationData[[4]], longitude = stationData[[3]], Method = tempMethodsTexts2, Labels = round(apply(Skillscores[tempTimes,,,tempseason,fit_method],1,max, na.rm = T), digits = 2))
+  plotName <- paste0(ScoringMethod[2], "_", "NL_lt", leadTimes[tempTimes], "_", seasonTexts[[tempseason]], "_", fitMethodTexts[fit_method])
+  tempPlot <- MapPlot(plotData, plotName, plotsettings)
+  print(tempPlot)
+  if (saving == 1){
+    ggsave(paste0(plotName, ".pdf"), plot = tempPlot, device = "pdf", path = "/usr/people/bakker/kilianbakker/plots/scores_plots/")
+  }
+} else if (plotSort == 3){
+  ReliabilityData <- c()
+  for (setting in tempsettings){
+    ReliabilityData <- c(ReliabilityData, Scores[tempTimes, tempPlaces, setting, tempseason, tempthreshold, fit_method,])
+  }
+  plotData <- data.frame(xaxis = seq(1/(2*NumberofBins),1-1/(2*NumberofBins),1/NumberofBins), data = ReliabilityData, Method = rep(tempMethodsTexts, each = NumberofBins))
+  plotName <- paste0(ScoringMethod[2], "_", stationData[[1]][tempPlaces], "_lt", leadTimes[tempTimes], "_", seasonTexts[[tempseason]], "_", fitMethodTexts[fit_method])
+  tempPlot <- Reliability_plot(plotData, plotName, plotsettings)
+  print(tempPlot)
+  if (saving == 1){
+    ggsave(paste0(plotName, "_t", thresholds[tempthreshold]*100, ".pdf"), plot = tempPlot, device = "pdf", path = "/usr/people/bakker/kilianbakker/plots/scores_plots/")
+  }
+}

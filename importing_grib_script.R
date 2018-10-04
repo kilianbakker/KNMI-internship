@@ -8,14 +8,15 @@ library(Rgrib2)
 library(rasterVis)
 
 # The variables/constants
-yearNumber     <- 2016
-monthNumber    <- 04
-dayNumber      <- 01
-timeNumber     <- 00
-variableNumber <- 265
-
-dateNumber     <- yearNumber*10000 + monthNumber*100 + dayNumber
 indir          <- "/net/pc150388/nobackup_3/users/schmeits/HARM38/"
+
+yearNumbers <- c(2016,2017,2018)
+files1 <-  list.files(path = paste0(indir,yearNumbers[1]), full.names = TRUE)
+files2 <-  list.files(path = paste0(indir,yearNumbers[2]), full.names = TRUE)
+files3 <-  list.files(path = paste0(indir,yearNumbers[3]), full.names = TRUE)
+filenames <- data.frame(files = c(files1,files2,files3), stringsAsFactors = FALSE)
+init_dates  <- as.numeric(unique(gsub("0000_[0-9]{5}_GB", "", gsub("HA38_N25_SOLFC_", "", basename(filenames$files)))))
+init_dates <- init_dates[!(init_dates %in% c(20171211,20180117))]
 
 heights <- c(30000, 25000, 21000, 18437, 16838, 15557, 14486, 13564, 12753, 12026, 11365, 10756, 10182, 9638, 9122, 8631, 8163, 7716, 7289, 6881, 6491, 6117, 5759, 5417, 5088, 4774, 4473, 4185, 3909, 3646, 3395, 3155, 2927, 2710,
              2504, 2308, 2125, 1951, 1788, 1636, 1494, 1363, 1241, 1127, 1023, 926, 836, 753, 677, 606, 541, 481, 427, 375, 329, 287, 247, 
@@ -54,11 +55,11 @@ import_grib <- function(afile, param, adate, alt){
 }
 
 # import the rasters and binds and saves them
-savingData <- function(dates){
+savingData <- function(date, files){
   dataraster <- do.call(rbind, apply(files, 1, function(d) {
     for (j in 1:12){
-      tmpcroprast1 <- crop(import_grib(afile = d, param = variableNumbersT[j], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
-      tmpcroprast2 <- crop(import_grib(afile = d, param = variableNumbersRH[j], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+      tmpcroprast1 <- crop(import_grib(afile = d, param = variableNumbersT[j], adate = get_date(d), alt = get_lt(d)), extent(bounds))
+      tmpcroprast2 <- crop(import_grib(afile = d, param = variableNumbersRH[j], adate = get_date(d), alt = get_lt(d)), extent(bounds))
       tempt <- 1 - 373.15/values(tmpcroprast1)
       SVP <- 1013.25*exp(13.3185*tempt - 1.976*tempt^2 - 0.6445*tempt^3 - 0.1299*tempt^4)
       WaterVapor <- 10^6*values(tmpcroprast2) * SVP / Pressures[j]
@@ -68,11 +69,11 @@ savingData <- function(dates){
       Humidities[,j] <- values(tmpcroprast2)
     }
     
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersT[13], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersT[13], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     T0meter <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersT[14], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersT[14], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     T2meter <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRH[13], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRH[13], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     RH2meter <- values(tmpcroprast)
     
     LowWaterVapor <- WaterVaporCorr[,1] * diffHeights2[12] + WaterVaporCorr[,2] * diffHeights2[11] + WaterVaporCorr[,3] * diffHeights2[10] + 
@@ -83,104 +84,80 @@ savingData <- function(dates){
     TotalWaterVapor <- LowWaterVapor + MediumWaterVapor + HighWaterVapor
     
     for (k in 1:65){
-      tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[k], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+      tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[k], adate = get_date(d), alt = get_lt(d)), extent(bounds))
       CloudWaters[,k] <- values(tmpcroprast)*diffHeights[k]
     }
     
-    HighCloudWater <- CloudWaters[,1]
-    for (m in 2:22){
-      HighCloudWater <- HighCloudWater + CloudWaters[,m]
-    }
+    HighCloudWater <- sum(CloudWaters[,1:22])
+    MediumCloudWater <- sum(CloudWaters[,23:37])
+    LowCloudWater <- sum(CloudWaters[,38:65])
+    TotalCloudWater <- sum(CloudWaters[,1:65])
     
-    MediumCloudWater <- CloudWaters[,23]
-    for (m in 24:37){
-      MediumCloudWater <- MediumCloudWater + CloudWaters[,m]
-    }
-    
-    LowCloudWater <- CloudWaters[,38]
-    for (m in 39:65){
-      LowCloudWater <- LowCloudWater + CloudWaters[,m]
-    }
-    
-    TotalCloudWater <- HighCloudWater + MediumCloudWater + LowCloudWater
-    
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[66], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[66], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     TotalCloudCover <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[67], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[67], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     LowCloudCover <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[68], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[68], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     MediumCloudCover <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[69], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[69], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     HighCloudCover <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[70], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[70], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     RainAcc <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[71], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[71], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     CloudBases <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[72], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[72], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     CloudTops <- values(tmpcroprast)
     
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[1], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[1], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     GlobalRadiation <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[2], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[2], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     DirectRadiationSURF <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[3], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[3], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     DirectRadiationTOA <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[4], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[4], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     NCSSURF <- values(tmpcroprast)
-    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[5], adate = get_date(d), alt = get_lt(d)), extent(3.4, 7.1, 50.8, 53.5))
+    tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersRAD[5], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     NCSTOA <- values(tmpcroprast)
     
     xcoordinates <- coordinates(tmpcroprast)[,1]
     ycoordinates <- coordinates(tmpcroprast)[,2]
     
-    tmpdf <- data.frame(lt = get_lt(d), xcoor = xcoordinates, ycoor = ycoordinates, T_0m = T0meter, T_2m = T2meter, 
-                        T_1000 = Temperatures[,1], T_950 = Temperatures[,2], T_925 = Temperatures[,3], T_900 = Temperatures[,4], 
+    tmpdf <- data.frame(lt = get_lt(d), xcoor = xcoordinates, ycoor = ycoordinates, 
+                        T_0m = T0meter, T_2m = T2meter, T_1000 = Temperatures[,1], T_950 = Temperatures[,2], T_925 = Temperatures[,3], T_900 = Temperatures[,4], 
                         T_850 = Temperatures[,5], T_800 = Temperatures[,6], T_700 = Temperatures[,7], T_600 = Temperatures[,8], 
                         T_500 = Temperatures[,9], T_400 = Temperatures[,10], T_300 = Temperatures[,11], T_200 = Temperatures[,12],
-                        lt = get_lt(d), xcoor = xcoordinates, ycoor = ycoordinates, RH_2m = RH2meter, 
-                        RH_1000 = Humidities[,1], RH_950 = Humidities[,2], RH_925 = Humidities[,3], RH_900 = Humidities[,4], 
+                        RH_2m = RH2meter, RH_1000 = Humidities[,1], RH_950 = Humidities[,2], RH_925 = Humidities[,3], RH_900 = Humidities[,4], 
                         RH_850 = Humidities[,5], RH_800 = Humidities[,6], RH_700 = Humidities[,7], RH_600 = Humidities[,8], 
                         RH_500 = Humidities[,9], RH_400 = Humidities[,10], RH_300 = Humidities[,11], RH_200 = Humidities[,12],
-                        lt = get_lt(d), xcoor = xcoordinates, ycoor = ycoordinates, 
                         CC_Total = TotalCloudCover, CC_Low = LowCloudCover, CC_Medium = MediumCloudCover, CC_High = HighCloudCover,
                         CW_Total = TotalCloudWater, CW_Low = LowCloudWater, CW_Medium = MediumCloudWater, CW_High = HighCloudWater, 
                         PW_Total = TotalWaterVapor, PW_Low = LowWaterVapor, PW_Medium = MediumWaterVapor, PW_High = HighWaterVapor,
                         Rain = RainAcc, Cloud_base = CloudBases, Cloud_top = CloudTops, 
-                        lt = get_lt(d), xcoor = xcoordinates, ycoor = ycoordinates, Global = GlobalRadiation,
-                        Direct_SURF = DirectRadiationSURF, Direct_TOA = DirectRadiationTOA, NCS_SURF = NCSSURF, NCS_TOA = NCSTOA)
+                        Global = GlobalRadiation, Direct_SURF = DirectRadiationSURF, Direct_TOA = DirectRadiationTOA, NCS_SURF = NCSSURF, NCS_TOA = NCSTOA)
     return(tmpdf)
   }))
   
-  tmpfile1 <- dataraster[1:17]
-  tmpfile2 <- dataraster[18:33]
-  names(tmpfile2)[names(tmpfile2)=="lt.1"] <- "lt"
-  names(tmpfile2)[names(tmpfile2)=="xcoor.1"] <- "xcoor"
-  names(tmpfile2)[names(tmpfile2)=="ycoor.1"] <- "ycoor"
-  tmpfile3 <- dataraster[34:51]
-  names(tmpfile3)[names(tmpfile3)=="lt.2"] <- "lt"
-  names(tmpfile3)[names(tmpfile3)=="xcoor.2"] <- "xcoor"
-  names(tmpfile3)[names(tmpfile3)=="ycoor.2"] <- "ycoor"
-  tmpfile4 <- dataraster[52:59]
-  names(tmpfile4)[names(tmpfile4)=="lt.3"] <- "lt"
-  names(tmpfile4)[names(tmpfile4)=="xcoor.3"] <- "xcoor"
-  names(tmpfile4)[names(tmpfile4)=="ycoor.3"] <- "ycoor"
+  tmpfile1 <- dataraster[c(1:3,4:17)]
+  tmpfile2 <- dataraster[c(1:3,18:30)]
+  tmpfile3 <- dataraster[c(1:3,31:45)]
+  tmpfile4 <- dataraster[c(1:3,46:50)]
   
-  saveRDS(tmpfile1, file=paste0("/nobackup/users/bakker/Data/temperaturevariables/",init_dates[dates],".rds"))
-  saveRDS(tmpfile2, file=paste0("/nobackup/users/bakker/Data/humidityvariables/",init_dates[dates],".rds"))
-  saveRDS(tmpfile3, file=paste0("/nobackup/users/bakker/Data/cloudvariables/",init_dates[dates],".rds"))
-  saveRDS(tmpfile4, file=paste0("/nobackup/users/bakker/Data/radiationvariables/",init_dates[dates],".rds"))
+  saveRDS(tmpfile1, file=paste0("/nobackup/users/bakker/Data2/temperaturevariables/",init_dates[date],".rds"))
+  saveRDS(tmpfile2, file=paste0("/nobackup/users/bakker/Data2/humidityvariables/",init_dates[date],".rds"))
+  saveRDS(tmpfile3, file=paste0("/nobackup/users/bakker/Data2/cloudvariables/",init_dates[date],".rds"))
+  saveRDS(tmpfile4, file=paste0("/nobackup/users/bakker/Data2/radiationvariables/",init_dates[date],".rds"))
 }
 
-yearNumber <- 2016
-fnames    <- data.frame(files = list.files(path = paste0(indir, yearNumber), full.names = TRUE), stringsAsFactors = FALSE)
-init_dates  <- unique(gsub("0000_[0-9]{5}_GB", "", gsub("HA38_N25_SOLFC_", "", basename(fnames$files))))
-init_dates <- init_dates[!init_dates %in% "20171211"]
-init_dates <- init_dates[!init_dates %in% "20180117"]
-WaterVaporCorr <- matrix(0,11817,12)
-Temperatures <- matrix(0,11817,12)
-Humidities <- matrix(0,11817,12)
-CloudWaters <- matrix(0,11817,65)
-for (i in 1:128){
-  files <- as.matrix(c(as.matrix(fnames[grepl(init_dates[i], fnames$files), ])[5:21],as.matrix(fnames[grepl(init_dates[i], fnames$files), ])[29:45]))
-  savingData(i)
+bounds <- c(3.25, 7.25, 50.75, 53.5)
+samplefile <- crop(import_grib(afile=filenames[grepl("20160401", filenames$files), ][[13]], param = 277, adate = "20160401", alt = "12"), extent(bounds))
+valueNumber <- dim(samplefile)[1]*dim(samplefile)[2]
+for (date in 2:225){
+  print(date)
+  Sys.sleep(0.01)
+  files <- as.matrix(filenames[grepl(init_dates[date], filenames$files), ][c(5:21,29:45)])
+  WaterVaporCorr <- array(NA, c(valueNumber,12))
+  Temperatures <- array(NA, c(valueNumber,12))
+  Humidities <- array(NA, c(valueNumber,12))
+  CloudWaters <- array(NA, c(valueNumber,65))
+  savingData(date, files)
 }
