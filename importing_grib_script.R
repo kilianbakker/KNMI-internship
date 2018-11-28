@@ -88,10 +88,10 @@ savingData <- function(date, files){
       CloudWaters[,k] <- values(tmpcroprast)*diffHeights[k]
     }
     
-    HighCloudWater <- sum(CloudWaters[,1:22])
-    MediumCloudWater <- sum(CloudWaters[,23:37])
-    LowCloudWater <- sum(CloudWaters[,38:65])
-    TotalCloudWater <- sum(CloudWaters[,1:65])
+    HighCloudWater <- rowSums(CloudWaters[,1:22])
+    MediumCloudWater <- rowSums(CloudWaters[,23:37])
+    LowCloudWater <- rowSums(CloudWaters[,38:65])
+    TotalCloudWater <- rowSums(CloudWaters[,1:65])
     
     tmpcroprast <- crop(import_grib(afile = d, param = variableNumbersCL[66], adate = get_date(d), alt = get_lt(d)), extent(bounds))
     TotalCloudCover <- values(tmpcroprast)

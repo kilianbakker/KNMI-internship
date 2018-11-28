@@ -194,10 +194,15 @@ reading_ZA_CSR <- function(){
   saveRDS(ZA, file = "/usr/people/bakker/kilianbakker/Data/zenithangles_data.rds")
 }
 
+MAE <- function(var1, var2){
+  MAEvalue <- sum(abs(var1 - var2), na.rm = TRUE)/length(var1)
+  MAEperc1 <-  MAEvalue/mean(var1, na.rm = TRUE)*100
+  MAEperc2 <-  MAEvalue/mean(var2, na.rm = TRUE)*100
+  return(c(MAEvalue, MAEperc1, MAEperc2))
+}
 
 RMSE <- function(var1, var2){
-  n <- length(var1)
-  RMSEvalue <- (sum((var1 - var2)^2, na.rm = TRUE)/(n-1))^(1/2)
+  RMSEvalue <- (sum((var1 - var2)^2, na.rm = TRUE)/length(var1))^(1/2)
   RMSEperc1 <-  RMSEvalue/mean(var1, na.rm = TRUE)*100
   RMSEperc2 <-  RMSEvalue/mean(var2, na.rm = TRUE)*100
   return(c(RMSEvalue, RMSEperc1, RMSEperc2))
@@ -211,25 +216,20 @@ CRPS <- function(var1, var2){
 }
 
 BS <- function(var1, var2){
-  tempBS <- (var1 - var2)^2
-  BS <- sum(tempBS)/length(tempBS)
+  BS <- sum((var1 - var2)^2,na.rm = T)/length(var1)
   return(BS)
 }
 
-PEVscores <- function(tempObs, tempFor, cost, loss){
-  PEV <- c(1:length(tempObs))
-  for (i in 1:length(tempObs)){
-    if (tempObs[i] == 1){
-      PEV[i] <- Cost*tempFor[i]
-    } else if (tempObs[i] == 0){
-      PEV[i] <- Cost*tempFor[i] + Loss*(1-tempFor[i])
-    }
-  }
-  PEVscore <- sum(PEV)/length(tempObs)
-  return(PEVscore)
+PEV <- function(tempObs, tempFor, CLratios){
+  PEVSS <- value(tempObs, pred = tempFor, baseline = 1-length(which(tempObs == 0))/length(tempObs), cl = CLratios,
+        plot = FALSE, all = FALSE, threshold = 0.5)$V[,1]
+  climvalue <- value(tempObs, pred = tempFor, baseline = 1-length(which(tempObs == 0))/length(tempObs), cl = NULL,
+        plot = FALSE, all = FALSE, threshold = 0.5)$V[,1]
+  PEVSS <- PEVSS[-which(PEVSS == climvalue)[1]]
+  return(PEVSS)
 }
 
-QEVscores <- function(observations, forecasts, quants){
+QEV <- function(observations, forecasts, quants){
   check_loss_function <- function(quantile, observation, forecast){
     if (observation - forecast >= 0){
       value <- quantile*abs(observation - forecast)
@@ -262,8 +262,16 @@ Reliability_plot <- function(plotData, plotName, plotsettings){
     geom_line(mapping = aes(x = xaxis, y = data, color = Method, linetype = Method)) + 
     scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
     scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
-    geom_line(mapping = aes(x = xaxis, y = xaxis), linetype = "twodash") + xlab("Forecast probability") + ylab("Observed relative frequency") +
-    ggtitle(plotName)
+    geom_line(mapping = aes(x = xaxis, y = xaxis), linetype = "twodash") + xlab("Forecast probability") + ylab("Observed relative frequency") + theme_bw()
+  return(Plot)
+}
+
+PEVplot <- function(plotData,plotName,plotsettings,Bounds){
+  Plot <- ggplot(data = plotData) + 
+    geom_line(mapping = aes(x = CLratio, y = data, color = Method, linetype = Method)) + 
+    scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
+    scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
+    ylim(Bounds) + xlab("Cost-Loss ratio") + ylab("Potential economic value") + theme_bw()
   return(Plot)
 }
 
@@ -276,7 +284,7 @@ FitPlot <- function(plotData, xpos1, ypos1, delta_ypos1){
     annotate("text", x = xpos1, y = ypos1, label = paste0(names(plotData)[[1]], " = ", round(coefficients(fit)[[1]], digits = 2), " + ", 
                                                           round(coefficients(fit)[[2]], digits = 2), " * ", names(plotData)[[2]])) +
     annotate("text", x = xpos1, y = ypos1 - delta_ypos1, label = paste0("R^2 = ", round(summary(fit)[[8]], digits = 4))) +
-    xlab(names(plotData)[[2]]) + ylab(names(plotData)[[1]])
+    xlab(names(plotData)[[2]]) + ylab(names(plotData)[[1]]) + theme_bw()
   return(plot)
 }
 
@@ -296,28 +304,27 @@ RadiationPlot <- function(plotData, xpos1, ypos1, delta_ypos1){
     annotate("text", x = xpos1, y = ypos1 - 5*delta_ypos1, label = paste0("bias = ", round(biases[1], digits = 2), " (", round(biases[2],digits = 2), "%) ")) +
     annotate("text", x = xpos1, y = ypos1 - 6*delta_ypos1, 
              label = paste0("RMSE = ", round(scores[1], digits = 2), " (", round(scores[2],digits = 2), "%)")) + 
-    xlab(names(plotData)[[2]]) + ylab(names(plotData)[[1]]) + ggtitle(paste0(names(plotData)[[2]], " VS observations"))
+    xlab(names(plotData)[[2]]) + ylab(names(plotData)[[1]]) + ggtitle(paste0(names(plotData)[[2]], " VS observations")) + theme_bw()
   return(plot)
 }
 
-LinePlot <- function(plotData, plotName, plotsettings, xaxis, Bounds){
+LinePlot <- function(plotData, plotName, plotsettings, xaxis, Bounds,ScoringMetric,xlabel){
   plot <- ggplot(data = plotData) +
     geom_line(mapping = aes(x = rep(seq(xaxis),length(unique(plotData$Method))), y = data, color = Method, linetype = Method)) +
     scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
     scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
     scale_x_continuous(breaks=seq(xaxis), labels=xaxis) + 
-    ylim(Bounds) + xlab("leadTime") + ylab("Skill scores") + ggtitle(plotName)
+    ylim(Bounds) + xlab(xlabel) + ylab(ScoringMetric) + theme_bw()
   return(plot)
 }
 
 MapPlot <- function(plotData, plotName, plotsettings){
   plot <- ggplot(plotData) + 
-    geom_point(aes(x = longitude, y = latitude, color = Method, linetype = Method)) + 
-    scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
-    scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
+    geom_point(aes(x = longitude, y = latitude, color = Method)) + 
+    scale_colour_manual(values = plotsettings[[1]][seq(1,2*length(unique(plotData$Method))-1,2)]) +
     geom_text(aes(x = longitude, y = latitude, label = Labels), nudge_x = 0.05, nudge_y = 0.05) + 
     geom_polygon(data = map_data("world"), aes(x=long, y = lat, group = group), fill = NA, color = "black", size = 0.25) +
-    coord_fixed(xlim = c(3.25, 7.5), ylim = c(50.75,53.5), ratio = 1.3) + ggtitle(plotName)
+    coord_fixed(xlim = c(3.25, 7.5), ylim = c(50.75,53.5), ratio = 1.3) + theme_bw()
   return(plot)
 }
 
@@ -571,19 +578,17 @@ importinglargeErrorhours <- function(Errorbound, stationData, stationPlace, init
 
 binaryPredictand <- function(observations, forecasts, threshold, quants){
   tempObs <- array(0, c(length(observations)))
+  tempFor <- array(0, c(length(observations)))
   for (i in 1:length(observations)){
     if (observations[i] >= threshold){
       tempObs[i] <- 1
     }
-  }
-  tempFor <- array(0, c(length(observations)))
-  for (j in 1:length(observations)){
-    tempFor[j] <- length(which(forecasts[j,] >= threshold))/length(quants)
+    tempFor[i] <- length(which(forecasts[i,] >= threshold))/length(quants)
   }
   return(list(tempObs,tempFor))
 }
 
-calculating_scores <- function(ScoringMethod, observations, forecasts, CSR){
+calculating_scores <- function(ScoringMethod, observations, forecasts, CSR, quants, threshold, NumberofBins, CLRatios, scaledPredictand, Perc){
   for (l in 1:length(observations)){
     if (CSR[l] < 20){
       forecasts[l,] <- NA
@@ -596,36 +601,61 @@ calculating_scores <- function(ScoringMethod, observations, forecasts, CSR){
       CSR[l] <- NA
     }
   }
-  tempObs <- na.omit(observations)
-  tempFor <- na.omit(forecasts)
-  tempCSR <- na.omit(CSR)
+  observations <- na.omit(observations)
+  forecasts <- na.omit(forecasts)
+  CSR <- na.omit(CSR)
+  if (scaledPredictand == 1){
+    observations <- observations/CSR
+    forecasts <- forecasts/array(CSR,c(length(CSR),length(quants)))
+  }
   
-  if (length(tempObs) > 1){
+  medians <- forecasts[,which(quants == 0.5)]
+  clim_det <- array(mean(observations),c(length(observations)))
+  clim_prob <- t(array(unname(quantile(observations, quants)), c(length(quants), length(observations))))
+
+  if (length(observations) > 1){
     if (ScoringMethod[1] == 0){
-      if (ScoringMethod[2] == "RMSESS"){
-        Score <- RMSE(tempObs, tempFor)[1]
-      } else if (ScoringMethod[2] == "CRPSS"){
-        Score <- CRPS(tempObs, tempFor)[1]
-      } else if (ScoringMethod[2] == "QEVSS"){ 
-        Score <- QEVscores(tempObs, tempFor, quants)
-      } else if (ScoringMethod[2] == "QSS"){
-        Score <- quantileScore(tempObs, tempFor, quants)
+      if (ScoringMethod[2] == "CRPS"){
+        Score <- CRPS(observations, forecasts)[Perc]
+        climScore <- CRPS(observations, clim_prob)[Perc]
+        Skillscore <- 1 - Score/climScore
+      } else if (ScoringMethod[2] == "QEV"){ 
+        Score <- QEV(observations, forecasts, quants)
+        climScore <- QEV(observations, clim_prob, quants)
+        Skillscore <- 1 - Score/climScore
+      } else if (ScoringMethod[2] == "RMSE"){ 
+        Score <- RMSE(observations, medians)[Perc]
+        climScore <- RMSE(observations, clim_det)[Perc]
+        Skillscore <- 1 - Score/climScore
+      } else if (ScoringMethod[2] == "MAE"){ 
+        Score <- MAE(observations, medians)[Perc]
+        climScore <- MAE(observations, clim_det)[Perc]
+        Skillscore <- 1 - Score/climScore
       }
     } else if (ScoringMethod[1] == 1){
-      tempObs <- binaryPredictand(tempObs/tempCSR, tempFor/array(tempCSR,c(length(tempCSR),length(quants))), threshold, quants)[[1]]
-      tempFor <- binaryPredictand(tempObs/tempCSR, tempFor/array(tempCSR,c(length(tempCSR),length(quants))), threshold, quants)[[2]]
-      if (ScoringMethod[2] == "PEVSS"){
-        Score <- PEVscores(tempObs,tempFor, cost, loss)
-      } else if (ScoringMethod[2] == "BSS"){
-        Score <- BS(tempObs,tempFor)
+      tempObs <- binaryPredictand(observations, forecasts, threshold, quants)[[1]]
+      tempFor <- binaryPredictand(observations, forecasts, threshold, quants)[[2]]
+      binary_clim <- array(mean(tempObs),c(length(tempObs)))
+      if (ScoringMethod[2] == "PEV"){
+        Skillscore <- PEV(tempObs, tempFor, CLratios)
+        climScore <- NA
+        Score <- NA
+      } else if (ScoringMethod[2] == "BS"){
+        Score <- BS(tempObs, tempFor)
+        climScore <- BS(tempObs, binary_clim)
+        Skillscore <- 1 - Score/climScore
       } else if (ScoringMethod[2] == "ReliabilityPlot"){
-        Score <- Reliability_diagram(tempObs,tempFor,NumberofBins)
+        Skillscore <- Reliability_diagram(tempObs, tempFor,length(NumberofBins))
+        climScore <- NA
+        Score <- NA
       }
     }
   } else {
     Score <- NA
+    climScore <- NA
+    Skillscore <- NA
   }
-  return(Score)
+  return(list(Score,climScore,Skillscore))
 }
 
 saving_dailyclimatologies <- function(ProbMethod, quants, stationData, stationPlaces){
@@ -660,7 +690,7 @@ saving_dailyclimatologies <- function(ProbMethod, quants, stationData, stationPl
   saveRDS(dailyclimatologies, file = paste0("/usr/people/bakker/kilianbakker/Data/dailyclimatologies_",ProbMethod,".rds"))
 }
 
-calculating_dailyclimatologies <- function(ContMethod, ProbMethod, leadTime, observations, CSR, init_dates, quants, stationPlace, DiscretizeWidth){
+calculating_dailyclimatologies <- function(ContMethod, ProbMethod, leadTime, observations, CSR, init_dates, stationPlace, quants, tempthres, NumberofBins, tempcost, temploss){
   tempdailyclimatologies <- readRDS(file = paste0("/usr/people/bakker/kilianbakker/Data/dailyclimatologies_",ProbMethod,".rds"))
   if (ProbMethod == 1){
     dailyclimatologies <- array(NA, c(length(init_dates)))
@@ -688,32 +718,7 @@ calculating_dailyclimatologies <- function(ContMethod, ProbMethod, leadTime, obs
         dailyclimatologies[k,] <- tempdailyclimatologies[DoY,stationPlace,,leadTime]
       }
     }
-
-      if (ContMethod == 1){
-    dailyclimatologies <- round(dailyclimatologies, digits = log(1/DiscretizeWidth)/log(10))
-  }
-  
-  clim_scores <- calculating_scores(ScoringMethod, observations, dailyclimatologies, CSR)
-  return(clim_scores)
-}
-
-calculating_sampleclimatologies <- function(ContMethod, ProbMethod, observations, CSR, init_dates, quants, DiscretizeWidth){
-  init_dates_temp <- init_dates[which(CSR > 20)]
-  if (length(init_dates_temp) > 0){
-    tempobservations <- observations[which(init_dates %in% init_dates_temp)]
-  } else {
-    tempobservations <- 0
-  }
-  if (ProbMethod == 1){
-    sampleclimatologies <- array(mean(tempobservations), c(length(init_dates)))
-  } else if (ProbMethod == 2){
-    sampleclimatologies <- array(unname(quantile(tempobservations, quants)), c(length(init_dates), length(quants)))
-  }
-  if (ContMethod == 1){
-    sampleclimatologies <- round(sampleclimatologies, digits = log(1/DiscretizeWidth)/log(10))
-  }
-  clim_scores <- calculating_scores(ScoringMethod, observations, sampleclimatologies, CSR)
-  return(clim_scores)
+  return(dailyclimatologies)
 }
 
 calculating_distances <- function(stationxcoor, stationycoor, Type){
@@ -768,4 +773,44 @@ if (Type == "Coast"){
   }
 }
 return(Distances)
+}
+
+rqupdated <- function(Alldata , quants, max){
+  predictors <- colnames(Alldata)[-length(colnames(Alldata))]
+  predictand <- colnames(Alldata)[length(colnames(Alldata))]
+  
+  actPredIndices <- c()
+  AIC <- mean(AIC(rq(formula = as.formula(paste0(predictand,"~",1)), data = Alldata, tau = quants)))
+  
+  while (length(actPredIndices) < max){
+    tempAIC <- array(NA,c(length(predictors)))
+    for (i in 1:length(predictors)){
+      if (!(i %in% actPredIndices)){
+        tempfit <- rq(formula = as.formula(paste0(predictand,"~",paste0(c(predictors[actPredIndices],predictors[i]), collapse = "+"))),
+                      data = Alldata, tau = quants)
+        tempAIC[i] <- mean(AIC(tempfit))
+      }
+    }
+    if (min(tempAIC,na.rm = T) < AIC){
+      actPredIndices <- c(actPredIndices,which(tempAIC == min(tempAIC,na.rm = T)))
+      AIC <- min(tempAIC,na.rm = T)
+    }
+    
+    if (length(actPredIndices) > 1){
+      tempAIC2 <- array(NA,c(length(predictors)))
+      for (i in 1:length(predictors)){
+        if (i %in% actPredIndices){
+          tempfit2 <- rq(formula = as.formula(paste0(predictand,"~",paste0(c(predictors[actPredIndices[-which(actPredIndices == i)]]), collapse = "+"))),
+                         data = Alldata, tau = quants)
+          tempAIC2[i] <- mean(AIC(tempfit2))
+        }
+      }
+      if (min(tempAIC2,na.rm = T) < AIC){
+        actPredIndices <- actPredIndices[-which(actPredIndices == which(tempAIC2 == min(tempAIC2,na.rm = T)))]
+        AIC <- min(tempAIC2,na.rm = T)
+      }
+    }
+  }
+  bestfit <- rq(formula = as.formula(paste0(predictand,"~",paste0(c(predictors[actPredIndices]), collapse = "+"))), data = Alldata, tau = quants)
+  return(bestfit)
 }
