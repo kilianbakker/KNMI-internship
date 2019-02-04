@@ -220,13 +220,16 @@ BS <- function(var1, var2){
   return(BS)
 }
 
-PEV <- function(tempObs, tempFor, CLratios){
-  PEVSS <- value(tempObs, pred = tempFor, baseline = 1-length(which(tempObs == 0))/length(tempObs), cl = CLratios,
-        plot = FALSE, all = FALSE, threshold = 0.5)$V[,1]
-  climvalue <- value(tempObs, pred = tempFor, baseline = 1-length(which(tempObs == 0))/length(tempObs), cl = NULL,
-        plot = FALSE, all = FALSE, threshold = 0.5)$V[,1]
-  PEVSS <- PEVSS[-which(PEVSS == climvalue)[1]]
-  return(PEVSS)
+PEV <- function(tempObs, tempFor, binary_clim){
+  if ((binary_clim > 0) && (binary_clim < 1)){
+    tempPEV <- value(tempObs, pred = tempFor, baseline = binary_clim, cl = seq(0.01,0.99,0.01), thresholds = seq(0.01,0.99,0.01), plot = F, all = F)
+    if (length(tempPEV$V[1,]) > 1){
+      PEVSS <- apply(tempPEV$V,1,max,na.rm = T)
+    } else if (length(tempPEV$V[1,]) == 1){
+      PEVSS <- tempPEV$V[,1]
+    }
+  }
+  return(list(PEVSS,tempPEV$cl))
 }
 
 QEV <- function(observations, forecasts, quants){
@@ -247,31 +250,30 @@ QEV <- function(observations, forecasts, quants){
   return(QEVscore)
 }
 
-Reliability_diagram <- function(tempObs, tempFor, NumberofBins){
-  Reliabilities <- array(NA, c(NumberofBins))
-  Binaxis <- seq(0,1,1/NumberofBins)
-  for (b in 1:(NumberofBins)){
+Reliability_diagram <- function(tempObs, tempFor){
+  Reliabilities <- array(NA, c(10))
+  Binaxis <- seq(0,1,0.1)
+  for (b in 1:10){
     Indices <- which((tempFor > Binaxis[b]) & (tempFor < Binaxis[b+1]))
     Reliabilities[b] <- sum(as.numeric(tempObs[Indices] == 1))/length(Indices)
   }
   return(Reliabilities)
 }
 
-Reliability_plot <- function(plotData, plotName, plotsettings){
+Reliability_plot <- function(plotData, plotcolors){
   Plot <- ggplot(data = plotData) + 
-    geom_line(mapping = aes(x = xaxis, y = data, color = Method, linetype = Method)) + 
-    scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
-    scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
-    geom_line(mapping = aes(x = xaxis, y = xaxis), linetype = "twodash") + xlab("Forecast probability") + ylab("Observed relative frequency") + theme_bw()
+    geom_line(mapping = aes(x = plotData[[1]], y = plotData[[2]], color = plotData[[3]])) + 
+    scale_colour_manual(values = plotcolors[1:(length(unique(plotData[[3]])))]) +
+    geom_line(mapping = aes(x = plotData[[1]], y = plotData[[1]]), linetype = "twodash") + 
+    xlab("Forecast probability") + ylab("Observed relative frequency") + theme_bw() + labs(color=names(plotData)[3], linetype = names(plotData)[3])
   return(Plot)
 }
 
-PEVplot <- function(plotData,plotName,plotsettings,Bounds){
+PEVplot <- function(plotData,plotcolors,Bounds){
   Plot <- ggplot(data = plotData) + 
-    geom_line(mapping = aes(x = CLratio, y = data, color = Method, linetype = Method)) + 
-    scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
-    scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
-    ylim(Bounds) + xlab("Cost-Loss ratio") + ylab("Potential economic value") + theme_bw()
+    geom_line(mapping = aes(x = plotData[[1]], y = plotData[[2]], color = plotData[[3]])) + 
+    scale_colour_manual(values = plotcolors[1:(length(unique(plotData[[3]])))]) +
+    ylim(Bounds) + xlab("Cost-Loss ratio") + ylab("Potential economic value") + theme_bw() + labs(color=names(plotData)[3], linetype = names(plotData)[3])
   return(Plot)
 }
 
@@ -308,23 +310,34 @@ RadiationPlot <- function(plotData, xpos1, ypos1, delta_ypos1){
   return(plot)
 }
 
-LinePlot <- function(plotData, plotName, plotsettings, xaxis, Bounds,ScoringMetric,xlabel){
+LinePlot <- function(plotData, plotcolors, Bounds,ylabel,xlabel){
   plot <- ggplot(data = plotData) +
-    geom_line(mapping = aes(x = rep(seq(xaxis),length(unique(plotData$Method))), y = data, color = Method, linetype = Method)) +
-    scale_colour_manual(values = plotsettings[[1]][1:(length(unique(plotData$Method)))]) +
-    scale_linetype_manual(values = plotsettings[[2]][1:(length(unique(plotData$Method)))]) +
-    scale_x_continuous(breaks=seq(xaxis), labels=xaxis) + 
-    ylim(Bounds) + xlab(xlabel) + ylab(ScoringMetric) + theme_bw()
+    geom_line(mapping = aes(x = plotData[[1]], y = plotData[[2]], color = plotData[[3]])) +
+    scale_colour_manual(values = plotcolors) +
+    scale_x_continuous(breaks=seq(unique(plotData[[1]]))[-seq(2,length(unique(plotData[[1]]))-1,2)], 
+                       labels=unique(plotData[[1]])[-seq(2,length(unique(plotData[[1]]))-1,2)]) + 
+    ylim(Bounds) + xlab(xlabel) + ylab(ylabel) + theme_bw() + labs(color=names(plotData)[3], linetype = names(plotData)[3])
   return(plot)
 }
 
-MapPlot <- function(plotData, plotName, plotsettings){
+LinePlot2 <- function(plotData, plotsettings, Bounds,ylabel,xlabel){
+  plot <- ggplot(data = plotData) +
+    geom_line(mapping = aes(x = plotData[[1]], y = plotData[[2]], color = plotData[[3]], linetype = plotData[[3]])) +
+    scale_colour_manual(values = plotsettings[[1]]) +
+    scale_linetype_manual(values = plotsettings[[2]]) +
+    scale_x_continuous(breaks=seq(unique(plotData[[1]]))[-seq(2,length(unique(plotData[[1]]))-1,2)], 
+                       labels=unique(plotData[[1]])[-seq(2,length(unique(plotData[[1]]))-1,2)]) + 
+    ylim(Bounds) + xlab(xlabel) + ylab(ylabel) + theme_bw() + labs(color=names(plotData)[3], linetype = names(plotData)[3])
+  return(plot)
+}
+
+MapPlot <- function(plotData, plotcolors){
   plot <- ggplot(plotData) + 
-    geom_point(aes(x = longitude, y = latitude, color = Method)) + 
-    scale_colour_manual(values = plotsettings[[1]][seq(1,2*length(unique(plotData$Method))-1,2)]) +
-    geom_text(aes(x = longitude, y = latitude, label = Labels), nudge_x = 0.05, nudge_y = 0.05) + 
+    geom_point(aes(x = plotData[[1]], y = plotData[[2]], color = plotData[[3]])) + 
+    scale_colour_manual(values = plotcolors) +
+    geom_text(aes(x = plotData[[1]], y = plotData[[2]], label = plotData[[4]]), nudge_x = 0.05, nudge_y = 0.05) + 
     geom_polygon(data = map_data("world"), aes(x=long, y = lat, group = group), fill = NA, color = "black", size = 0.25) +
-    coord_fixed(xlim = c(3.25, 7.5), ylim = c(50.75,53.5), ratio = 1.3) + theme_bw()
+    coord_fixed(xlim = c(3.25, 7.5), ylim = c(50.75,53.5), ratio = 1.3) + theme_bw() + labs(color=names(plotData)[3], linetype = names(plotData)[3])
   return(plot)
 }
 
@@ -580,26 +593,21 @@ binaryPredictand <- function(observations, forecasts, threshold, quants){
   tempObs <- array(0, c(length(observations)))
   tempFor <- array(0, c(length(observations)))
   for (i in 1:length(observations)){
-    if (observations[i] >= threshold){
+    if (observations[i] <= threshold){
       tempObs[i] <- 1
     }
-    tempFor[i] <- length(which(forecasts[i,] >= threshold))/length(quants)
+    tempFor[i] <- length(which(forecasts[i,] <= threshold))/length(quants)
   }
   return(list(tempObs,tempFor))
 }
 
-calculating_scores <- function(ScoringMethod, observations, forecasts, CSR, quants, threshold, NumberofBins, CLRatios, scaledPredictand, Perc){
+calculating_scores <- function(ScoringMethod, observations, forecasts, CSR, quants, threshold, scaledPredictand, Perc){
   for (l in 1:length(observations)){
-    if (CSR[l] < 20){
+    if ((CSR[l] < 20)||(sum(is.na(forecasts[l,])) > 0)){
       forecasts[l,] <- NA
       observations[l] <- NA
       CSR[l] <- NA
     } 
-    if (sum(as.numeric(is.na(forecasts[l,]) == T)) > 0){
-      forecasts[l,] <- NA
-      observations[l] <- NA
-      CSR[l] <- NA
-    }
   }
   observations <- na.omit(observations)
   forecasts <- na.omit(forecasts)
@@ -635,17 +643,17 @@ calculating_scores <- function(ScoringMethod, observations, forecasts, CSR, quan
     } else if (ScoringMethod[1] == 1){
       tempObs <- binaryPredictand(observations, forecasts, threshold, quants)[[1]]
       tempFor <- binaryPredictand(observations, forecasts, threshold, quants)[[2]]
-      binary_clim <- array(mean(tempObs),c(length(tempObs)))
+      binary_clim <- mean(tempObs)
       if (ScoringMethod[2] == "PEV"){
-        Skillscore <- PEV(tempObs, tempFor, CLratios)
-        climScore <- NA
+        Skillscore <- PEV(tempObs, tempFor, binary_clim)[[1]]
+        climScore <- PEV(tempObs, tempFor, binary_clim)[[2]]
         Score <- NA
       } else if (ScoringMethod[2] == "BS"){
         Score <- BS(tempObs, tempFor)
-        climScore <- BS(tempObs, binary_clim)
+        climScore <- BS(tempObs, array(binary_clim,c(length(tempObs))))
         Skillscore <- 1 - Score/climScore
       } else if (ScoringMethod[2] == "ReliabilityPlot"){
-        Skillscore <- Reliability_diagram(tempObs, tempFor,length(NumberofBins))
+        Skillscore <- Reliability_diagram(tempObs, tempFor)
         climScore <- NA
         Score <- NA
       }
@@ -775,20 +783,84 @@ if (Type == "Coast"){
 return(Distances)
 }
 
-rqupdated <- function(Alldata , quants, max){
-  predictors <- colnames(Alldata)[-length(colnames(Alldata))]
-  predictand <- colnames(Alldata)[length(colnames(Alldata))]
+AIC_neuralnetwork <- function(Errors, k, p, q){
+  n <- length(Errors)
+  WSR <- sum((q - as.numeric(Errors < 0))*Errors)
+  AIC <- -2*(n * (log(q * (1-q)) - 1 - log(WSR/n))) + k*(p+1)
+  return(AIC)
+}
+
+AIC_neuralnetwork2 <- function(Errors, k, p, q){
+  SSE <- sum(Errors^2, na.rm = T)
+  sampleVar <- SSE/(length(Errors) - p - 1)
+  AIC <- -2*(-0.5*length(Errors)*log(2*pi*sampleVar) + SSE/(2*sampleVar)) + k*(p + 1)
+  return(AIC)
+}
+
+stepwiseProcedure <- function(data , quantiles, steps, method, hiddens = 1, deephiddens = NULL, iters = 10, penalties = 0){
+  predictornames <- colnames(data)[-length(colnames(data))]
+  predictandname <- colnames(data)[length(colnames(data))]
   
-  actPredIndices <- c()
-  AIC <- mean(AIC(rq(formula = as.formula(paste0(predictand,"~",1)), data = Alldata, tau = quants)))
+  Predictors <- data[,-length(colnames(data))]
+  Predictand <- data[,length(colnames(data))]
   
-  while (length(actPredIndices) < max){
-    tempAIC <- array(NA,c(length(predictors)))
-    for (i in 1:length(predictors)){
+  if (method == "QR"){
+    actPredIndices <- c()
+    AIC <- mean(AIC(rq(formula = as.formula(paste0(predictandname,"~",1)), data = data, tau = quantiles)))
+  } else if (method == "ANN"){
+    actPredIndices <- c(1)
+    tempfit <- mcqrnn.fit(as.matrix(Predictors[,actPredIndices]), as.matrix(Predictand), n.hidden = hiddens, n.hidden2 = deephiddens, tau = quantiles, iter.max= iters, 
+               n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+    tempPredictions <- as.matrix(mcqrnn.predict(as.matrix(Predictors[,actPredIndices]), tempfit, tau = quantiles))
+    quantileAICs <- array(NA, c(length(quantiles)))
+    for (q in 1:length(quantiles)){
+      quantileAICs[q] <- AIC_neuralnetwork(Predictand - tempPredictions[,q], 2, length(actPredIndices), quantiles[q])
+    }
+    AIC <- mean(quantileAICs)
+  } else if (method == "ANN2"){
+    actPredIndices <- c(1)
+    if (is.null(deephiddens)){
+      tempfit <- qrnn.fit(as.matrix(Predictors[,actPredIndices]), as.matrix(Predictand), n.hidden = hiddens, tau = 0.5, iter.max= iters, 
+                          n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+      tempPredictions <- as.matrix(qrnn.predict(as.matrix(Predictors[,actPredIndices]), tempfit))
+    } else {
+      tempfit <- qrnn2.fit(as.matrix(Predictors[,actPredIndices]), as.matrix(Predictand), n.hidden = hiddens, n.hidden2 = deephiddens, tau = 0.5, iter.max= iters, 
+                          n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+      tempPredictions <- as.matrix(qrnn2.predict(as.matrix(Predictors[,actPredIndices]), tempfit))
+    } 
+    AIC <- AIC_neuralnetwork(Predictand - tempPredictions[,1], 2, length(actPredIndices), 0.5)
+  }
+  
+  step <- 1
+  while (step <= steps){
+    tempAIC <- array(NA,c(length(predictornames)))
+    for (i in 1:length(predictornames)){
       if (!(i %in% actPredIndices)){
-        tempfit <- rq(formula = as.formula(paste0(predictand,"~",paste0(c(predictors[actPredIndices],predictors[i]), collapse = "+"))),
-                      data = Alldata, tau = quants)
-        tempAIC[i] <- mean(AIC(tempfit))
+        if (method == "QR"){
+          tempfit <- rq(formula = as.formula(paste0(predictandname,"~",paste0(c(predictornames[actPredIndices],predictornames[i]), collapse = "+"))),
+                      data = data, tau = quantiles)
+          tempAIC[i] <- mean(AIC(tempfit))
+        } else if (method == "ANN"){
+          tempfit <- mcqrnn.fit(as.matrix(Predictors[,c(actPredIndices,i)]), as.matrix(Predictand), n.hidden = hiddens, n.hidden2 = deephiddens, tau = quantiles, iter.max= iters, 
+                                n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+          tempPredictions <- as.matrix(mcqrnn.predict(as.matrix(Predictors[,c(actPredIndices,i)]), tempfit, tau = quantiles))
+          quantileAICs <- array(NA, c(length(quantiles)))
+          for (q in 1:length(quantiles)){
+            quantileAICs[q] <- AIC_neuralnetwork(Predictand - tempPredictions[,q], 2, length(c(actPredIndices,i)),quantiles[q])
+          }
+          tempAIC[i] <- mean(quantileAICs)
+        } else if (method == "ANN2"){
+          if (is.null(deephiddens)){
+            tempfit <- qrnn.fit(as.matrix(Predictors[,c(actPredIndices,i)]), as.matrix(Predictand), n.hidden = hiddens, tau = 0.5, iter.max= iters, 
+                                n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+            tempPredictions <- as.matrix(qrnn.predict(as.matrix(Predictors[,c(actPredIndices,i)]), tempfit))
+          } else {
+            tempfit <- qrnn2.fit(as.matrix(Predictors[,c(actPredIndices,i)]), as.matrix(Predictand), n.hidden = hiddens, n.hidden2 = deephiddens, tau = 0.5, iter.max= iters, 
+                                 n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+            tempPredictions <- as.matrix(qrnn2.predict(as.matrix(Predictors[,c(actPredIndices,i)]), tempfit))
+          } 
+          tempAIC[i] <- AIC_neuralnetwork(Predictand - tempPredictions[,1], 2, length(c(actPredIndices,i)),0.5)
+        }
       }
     }
     if (min(tempAIC,na.rm = T) < AIC){
@@ -797,12 +869,34 @@ rqupdated <- function(Alldata , quants, max){
     }
     
     if (length(actPredIndices) > 1){
-      tempAIC2 <- array(NA,c(length(predictors)))
-      for (i in 1:length(predictors)){
+      tempAIC2 <- array(NA,c(length(predictornames)))
+      for (i in 1:length(predictornames)){
         if (i %in% actPredIndices){
-          tempfit2 <- rq(formula = as.formula(paste0(predictand,"~",paste0(c(predictors[actPredIndices[-which(actPredIndices == i)]]), collapse = "+"))),
-                         data = Alldata, tau = quants)
-          tempAIC2[i] <- mean(AIC(tempfit2))
+          if (method == "QR"){
+            tempfit2 <- rq(formula = as.formula(paste0(predictandname,"~",paste0(c(predictornames[actPredIndices[-which(actPredIndices == i)]]), collapse = "+"))),
+                         data = data, tau = quantiles)
+            tempAIC2[i] <- mean(AIC(tempfit2))
+          } else if (method == "ANN"){
+            tempfit2 <- mcqrnn.fit(as.matrix(Predictors[,actPredIndices[-which(actPredIndices == i)]]), as.matrix(Predictand), n.hidden = hiddens, n.hidden2 = deephiddens, tau = quantiles, iter.max= iters, 
+                                  n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+            tempPredictions <- as.matrix(mcqrnn.predict(as.matrix(Predictors[,actPredIndices[-which(actPredIndices == i)]]), tempfit2, tau = quantiles))
+            quantileAICs <- array(NA, c(length(quantiles)))
+            for (q in 1:length(quantiles)){
+              quantileAICs[q] <- AIC_neuralnetwork(Predictand - tempPredictions[,q], 2, length(actPredIndices[-which(actPredIndices == i)]), quantiles[q])
+            }
+            tempAIC2[i] <- mean(quantileAICs)
+          } else if (method == "ANN2"){
+            if (is.null(deephiddens)){
+              tempfit2 <- qrnn.fit(as.matrix(Predictors[,actPredIndices[-which(actPredIndices == i)]]), as.matrix(Predictand), n.hidden = hiddens, tau = 0.5, iter.max= iters, 
+                                  n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+              tempPredictions <- as.matrix(qrnn.predict(as.matrix(Predictors[,actPredIndices[-which(actPredIndices == i)]]), tempfit2))
+            } else {
+              tempfit2 <- qrnn2.fit(as.matrix(Predictors[,actPredIndices[-which(actPredIndices == i)]]), as.matrix(Predictand), n.hidden = hiddens, n.hidden2 = deephiddens, tau = 0.5, iter.max= iters, 
+                                   n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+              tempPredictions <- as.matrix(qrnn2.predict(as.matrix(Predictors[,actPredIndices[-which(actPredIndices == i)]]), tempfit2))
+            } 
+            tempAIC2[i] <- AIC_neuralnetwork(Predictand - tempPredictions[,1], 2, length(actPredIndices[-which(actPredIndices == i)]),0.5)
+          }
         }
       }
       if (min(tempAIC2,na.rm = T) < AIC){
@@ -810,7 +904,61 @@ rqupdated <- function(Alldata , quants, max){
         AIC <- min(tempAIC2,na.rm = T)
       }
     }
+    step <- step + 1
   }
-  bestfit <- rq(formula = as.formula(paste0(predictand,"~",paste0(c(predictors[actPredIndices]), collapse = "+"))), data = Alldata, tau = quants)
-  return(bestfit)
+  if (method == "QR"){
+    bestfit <- rq(formula = as.formula(paste0(predictandname,"~",paste0(c(predictornames[actPredIndices]), collapse = "+"))), data = data, tau = quants)
+  } else if (method == "ANN"){
+    bestfit <- mcqrnn.fit(as.matrix(Predictors[,actPredIndices]), as.matrix(Predictand), n.hidden = hiddens, n.hidden2 = deephiddens, tau = quants, iter.max= iters, 
+                           n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+  } else if (method == "ANN2"){
+    if (is.null(deephiddens)){
+      bestfit <- qrnn.fit(as.matrix(Predictors[,actPredIndices]), as.matrix(Predictand), n.hidden = hiddens, tau = 0.5, iter.max= iters, 
+                           n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+    } else {
+      bestfit <- qrnn2.fit(as.matrix(Predictors[,actPredIndices]), as.matrix(Predictand), n.hidden = hiddens, n.hidden2 = deephiddens, tau = 0.5, iter.max= iters, 
+                            n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
+    } 
+  }
+  return(list(bestfit,actPredIndices))
+}
+
+CalculateImp <- function(RegMethod, DistMethod, leadTimes, seasons, NumberofCV, variableNames, MuSig, quants, gbmTrees){
+  Imp <- array(0, c(length(leadTimes),length(seasons),NumberofCV,length(variableNames)))
+  for (time in 1:length(leadTimes)){
+    for (season in 1:length(seasons)){
+      for (CVmonth in 1:NumberofCV){
+        if (RegMethod != 5){
+          if (file.exists(paste0("/nobackup/users/bakker/Data2/fits/fit_final_", CVmonth, "_", season, "_", time, "_", RegMethod,"_", DistMethod, ".rds"))){
+            tempfit <- readRDS(file = paste0("/nobackup/users/bakker/Data2/fits/fit_final_", CVmonth, "_", season, "_", time, "_", RegMethod,"_", DistMethod, ".rds"))
+            if (RegMethod == 1){
+              if (0 %in% MuSig){
+                Imp[time,season,CVmonth,which(variableNames %in% names(tempfit$mu.coefficients)[-1])] <- 1
+              }
+              if (1 %in% MuSig){
+                Imp[time,season,CVmonth,which(variableNames %in% names(tempfit$sigma.coefficients)[-1])] <- 1
+              }
+            } else if (RegMethod == 8){
+              Imp[time,season,CVmonth,which(variableNames %in% rownames(tempfit$coefficients)[-1])] <- 1
+            } else if (RegMethod == 4){
+              Imp[time,season,CVmonth,] <- as.numeric(tempfit$importance)
+            } else if (RegMethod == 9){
+              Imp[time,season,CVmonth,] <- variable_importance(tempfit)[,1]
+            } else if (RegMethod == 6){
+            } 
+          }
+        } else if (RegMethod == 5){
+          if (file.exists(paste0("/nobackup/users/bakker/Data2/fits/fit_final_", CVmonth, "_", season, "_", time, "_", 1, "_", RegMethod,"_", DistMethod, ".rds"))){
+            tempImportance <- array(0, c(length(variableNames),length(quants)))
+            for (q in 1:length(quants)){
+              tempfit <- readRDS(file = paste0("/nobackup/users/bakker/Data2/fits/fit_final_", CVmonth, "_", season, "_", time, "_", q, "_", RegMethod,"_", DistMethod, ".rds"))
+              tempImportance[,q] <- varImp(tempfit,gbmTrees)[[1]]
+            }
+            Imp[time,season,CVmonth,] <- rowMeans(tempImportance)
+          }
+        }
+      }
+    }
+  }
+  return(Imp)
 }

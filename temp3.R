@@ -1,31 +1,36 @@
-tmprds <- readRDS(file  = paste0("/usr/people/bakker/kilianbakker/Data/variables_9x9gridbox_3lt.rds"))
-tmprds[,,c(1,16),c(1:5,6:18,22:27)] <- tmprds[,,c(1,16),c(1:5,6:18,22:27)]/1.5
-tmprds[,,c(1,16),c(1:5)] <- tmprds[,,c(1,16),c(1:5)]/1.5
-
-
-leadTimeSizes <- c(-1,0,1)
-DomainSizes <- c(-4,-3,-2,-1,0,1,2,3,4)
-  for (date in 1:length(init_dates)){
-    print(date)
-    Sys.sleep(0.01)
-    cloudData <- readRDS(file = paste0("/nobackup/users/bakker/Data2/cloudvariables/",init_dates[date],".rds"))
-
-    for (place in 1:length(stationPlaces)){
-      xcoordinate <- coordinatesLargeGrid(stationData,stationPlaces[place], DomainSizes, DomainSizes, cloudData)[[1]]
-      ycoordinate <- coordinatesLargeGrid(stationData,stationPlaces[place], DomainSizes, DomainSizes, cloudData)[[2]]
-
-      for (time in 1:length(leadTimes)){
-        leadTime <- leadTimes[time]
-
-        leadTimesRegion <- leadTime + leadTimeSizes
-        if (leadTime %in% c(5,29)){
-          leadTimesRegion <- leadTime + leadTimeSizes[-1]
-        }
-        
-        clouds <- colMeans(filter(cloudData, xcoor %in% xcoordinate, ycoor %in% ycoordinate, as.numeric(as.character(lt)) %in% (leadTimesRegion))[8:11])
-        tmprds[date,place,time,c(10:13)] <- as.numeric(unname(clouds))
-      }
-    }
+#low amount of clouds, high amount of aerosols
+dates1 <- c()
+for (i in 1:670){
+  if (length(which(AllvariableData[i,23,1:15,19] > 0.5)) > 7.5){
+    dates1 <- c(dates1,i)  
   }
-  saveRDS(tmprds, file  = paste0("/usr/people/bakker/kilianbakker/Data/variables_9x9gridbox_3lt.rds"))
-  
+}
+idates1 <- init_dates[sort(unique(dates1))]
+
+dates2 <- c()
+for (i in 1:670){
+  if (length(which(AllvariableData[i,23,1:15,7] == 0)) > 7.5){
+    dates2 <- c(dates2,i)  
+  }
+}
+idates2 <- init_dates[sort(unique(dates2))]
+intersect(idates1,idates2)
+
+
+#Fully overcast, no rain
+dates3 <- c()
+for (i in 1:670){
+  if ((length(which(AllvariableData[i,23,1:15,6] > 0.75)) == 15) && (length(which(AllvariableData[i,23,1:15,7] > 0.75)) == 15)){
+    dates3 <- c(dates3,i)  
+  }
+}
+idates3 <- init_dates[sort(unique(dates3))]
+
+dates4 <- c()
+for (i in 1:670){
+  if (length(which(AllvariableData[i,23,1:15,18] == 0)) == 15){
+    dates4 <- c(dates4,i)  
+  }
+}
+idates4 <- init_dates[sort(unique(dates4))]
+intersect(idates3,idates4)

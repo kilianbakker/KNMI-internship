@@ -64,31 +64,33 @@ zenithangleData <- readRDS(file = "/usr/people/bakker/kilianbakker/Data/zenithan
 observationData <-read.table("/usr/people/bakker/kilianbakker/Data/observation_data.txt", sep=",", col.names=c("Station","Date","Time","Radiation"), fill=TRUE)
 observationData[[4]] <- observationData[[4]]*(10000/3600)
 
-varSizes <- c("variables_1x1gridbox_1lt","variables_1x1gridbox_3lt","variables_1x1gridbox_3lt_RadNoAvg","variables_3x3gridbox_1lt", "variables_3x3gridbox_3lt", 
-              "variables_3x3gridbox_3lt_RadNoAvg","variables_5x5gridbox_1lt", "variables_5x5gridbox_3lt", "variables_5x5gridbox_3lt_RadNoAvg",
-              "variables_7x7gridbox_1lt", "variables_7x7gridbox_3lt", "variables_7x7gridbox_3lt_RadNoAvg","variables_9x9gridbox_1lt", "variables_9x9gridbox_3lt",
-              "variables_9x9gridbox_3lt_RadNoAvg")[c(14)]
-vars<-1
-for (vars in 1:length(varSizes)){
-varSize <- varSizes[vars]
-AllvariableData <- readRDS(file  = paste0("/usr/people/bakker/kilianbakker/Data/",varSize,".rds"))
+varSizes <- c("1x1gridbox_1lt","1x1gridbox_3lt","3x3gridbox_1lt","3x3gridbox_3lt","5x5gridbox_1lt","5x5gridbox_3lt",
+              "7x7gridbox_1lt","7x7gridbox_3lt","9x9gridbox_1lt", "9x9gridbox_3lt")[10]
+vars <- varSizes[1]
+for (vars in varSizes){
+AllvariableData <- readRDS(file  = paste0("/usr/people/bakker/kilianbakker/Data/variables_upd_",vars,".rds"))
 
-hyperparamText <- "ntrees"
-samps <- c(1/6,2/6,3/6,4/6,5/6)
-mtries <- c(1/6,2/6,3/6,4/6,5/6)
-nodesizes <- c(5,10,20,50)
-ntrees <- c(100,500,1000,2000)
-shrinkages <- c(0.001,0.01,0.1,0.2,0.5,1)
-depths <- c(1,5,10,20,40)
-hiddens1 <- c(1,2,3)
-hiddens2 <- c(1,2,3)
-iters <- c(2,10,100)
-musteps <- c(1,3,5,10)
-sigmasteps <- c(0,1,3,5)
-penalties <- c(0,0.01,0.1,1)
-hyperparameters <- ntrees
-for (hyper in 1:1){#length(hyperparameters)){
+hyperparamTexts <- c("samps","mtries","nodesizes","ntrees","shrinkages","depths","hiddens1","hiddens2","iters","musteps","sigmasteps","penalties")
+hyperparameters <- list(c(2/6,3/6,4/6)[2], c(2/6,3/6,4/6)[1], c(5,10,50)[1], c(100,500,2000)[2], c(0.01,0.1,1)[2], c(1,5,20)[1], c(1,2,3)[1], 
+                        c(0,1,2,3)[1], c(2,10,100)[2], c(1,3,5,10)[3], c(0,1,3,5)[2], c(0,0.01,0.1,1)[1])
 
+for (hypersamps in hyperparameters[[1]]){
+for (hypermtries in hyperparameters[[2]]){
+for (hypernodesizes in hyperparameters[[3]]){
+for (hyperntrees in hyperparameters[[4]]){
+for (hypershrinkages in hyperparameters[[5]]){
+for (hyperdepths in hyperparameters[[6]]){
+for (hyperhiddens1 in hyperparameters[[7]]){
+for (hyperhiddens2 in hyperparameters[[8]]){
+for (hyperiters in hyperparameters[[9]]){
+for (hypermusteps in hyperparameters[[10]]){
+for (hypersigmasteps in hyperparameters[[11]]){
+for (hyperpenalties in hyperparameters[[12]]){
+  
+savingText <- paste0(hypersamps,"_",hypermtries,"_",hypernodesizes,"_",hyperntrees,"_",hypershrinkages,"_",hyperdepths,"_",hyperhiddens1,"_",
+                     hyperhiddens2,"_",hyperiters,"_",hypermusteps,"_",hypersigmasteps,"_",hyperpenalties)
+shuffling <- 0
+  
 stepsize <- 1/50
 quants <- seq(stepsize,1-stepsize, stepsize)
 predictand <- 2 #1 = obs_SURF, 2 = obs_SURF/CSR, 3 = obs_SURF/obs_TOA
@@ -99,11 +101,10 @@ seasons <- list(c(201612,201701,201702,201712,201801,201802), c(201604,201605,20
                 c(201606,201607,201608,201706,201707,201708), c(201609,201610,201611,201709,201710,201711))
 clearskyHours <-readRDS("/usr/people/bakker/kilianbakker/Data/clearskyhours.rds")
 clearskyHours <- clearskyHours[,which(as.numeric(colnames(clearskyHours)) %in% init_dates)]
-settings <- list(c(2,1,0,0),c(2,1,1,0),c(2,1,3,0),c(2,1,4,0),c(2,1,5,0),c(2,1,6,0),c(2,2,0,0),c(2,2,1,-1),c(2,2,1,0),c(2,2,1,1),c(2,2,1,2),c(2,2,1,3),
-                 c(2,2,3,0),c(2,2,4,0),c(2,2,5,0),c(2,2,6,0),c(2,2,8,0),c(2,2,9,0),c(2,2,10,0))
+settings <- list(c(2,2,0,0),c(2,2,1,1),c(2,2,1,2),c(2,2,8,0),c(2,2,4,0),c(2,2,9,0),c(2,2,5,0),c(2,2,6,0))
 
 NumberofCV <- 3
-setting <- 14
+setting <- 8
 stationPlaces <- c(1:30)
 time <- 8
 season <- 1
@@ -111,16 +112,13 @@ CVmonth <- 1
 repeated_init_dates <- rep(init_dates,each = length(stationPlaces))
 repeated_places <- rep(stationData[[2]][stationPlaces], length(init_dates))
 variableIndices <- c(1:length(variableNames))
-QRFimp <- array(NA, c(length(leadTimes),length(seasons),NumberofCV,length(variableIndices)))
-GBMimp <- array(NA, c(length(leadTimes),length(seasons),NumberofCV,length(quants),length(variableIndices)))
-GRFimp <- array(NA, c(length(leadTimes),length(seasons),NumberofCV,length(variableIndices)))
 
-for (setting in c(15)){
+for (setting in c(8)){
   ContMethod <- settings[[setting]][1]
   ProbMethod <- settings[[setting]][2] 
   RegMethod <- settings[[setting]][3]
   DistMethod <- settings[[setting]][4]
-
+  
 if (ProbMethod == 1){
   Predictionset <- array(NA, c(length(init_dates), length(stationPlaces),length(leadTimes)))
 } else if (ProbMethod == 2){
@@ -128,6 +126,8 @@ if (ProbMethod == 1){
 }
 
 for (time in 1:length(leadTimes)){
+  Sys.sleep(0.01)
+  print(time)
   leadTime <- leadTimes[time]
   
   temp_init_dates <- init_dates
@@ -177,7 +177,14 @@ for (time in 1:length(leadTimes)){
   for (season in 1:length(seasons)){
   DataMonths <- seasons[[season]]
   tempIndices <- intersect(intersect(which(CSR > 20), which(floor(repeated_init_dates/100) %in% DataMonths)), DateIndices)
-  #tempIndices <- sample(tempIndices)
+  if (shuffling == 1){
+    dateshuffle <- sample(init_dates)
+    temptempIndices2 <- c()
+    for (i in 1:length(dateshuffle)){
+      temptempIndices2 <- c(temptempIndices2,which(repeated_init_dates == dateshuffle[i]))
+    }
+    tempIndices <- temptempIndices2[which(temptempIndices2 %in% tempIndices)]
+  }
   if (ProbMethod == 1){
     tempPredictionset <- array(NA,c(length(tempIndices)))
   } else if (ProbMethod == 2){
@@ -188,26 +195,15 @@ for (time in 1:length(leadTimes)){
     testIndices <- c(floor(length(tempIndices)*(CVmonth-1)/NumberofCV)+1):(floor(length(tempIndices)*CVmonth/NumberofCV))
     TrainingData <- All_Data[tempIndices,][-testIndices, 1:(length(colnames(All_Data))-2)]
     TestingData <- All_Data[tempIndices,][testIndices, 1:(length(colnames(All_Data))-3)]
-    #zeroVarColumns <- c(which(as.numeric(apply(TrainingData,2,var)) <= 0.0001))
-    #if (length(zeroVarColumns) > 0){
-    #  TrainingData <- TrainingData[,-zeroVarColumns]
-    #  TestingData <- TestingData[,-zeroVarColumns]
-    #}
-    
+
     Predictors <- TrainingData[,-length(colnames(TrainingData))]
     Predictand <-  TrainingData[,length(colnames(TrainingData))]
-    
-    #normal linear regression
-    #variableNumber <- 1
-    #plotData <- TrainingData[,c(variableNumber, length(TrainingData[1,])-1)]
-    #FitPlot(plotData, 300, -0.5, 0.1)
     
     form <- paste0("~", paste(colnames(TestingData), collapse = "+"))
     formula1 <- paste0(predictandNames[predictand], "~.")
     formula2 <-  paste0(predictandNames[predictand], "~1")
     formula3 <- paste0(predictandNames[predictand], form)
 
-    #stepwise linear regression
     if (ProbMethod == 1){
       if (RegMethod == 0){
         tempPredictionset[testIndices] <- RadiationData[[4]][tempIndices][testIndices]
@@ -271,32 +267,22 @@ for (time in 1:length(leadTimes)){
          fitcontrol <- gamlss.control(c.crit = 0.01, n.cyc = 50, mu.step = 1, sigma.step = 1, nu.step = 1, 
                                      tau.step = 1, gd.tol = Inf, iter = 0, trace = F, autostep = TRUE, save = T)
          fitcontrol2 <- glim.control(cc = 0.01, cyc = 50, glm.trace = F, bf.cyc = 50, bf.tol = 0.01, bf.trace = F)
-        if (DistMethod %in% c(-1,0,1)){
-          fit0 <- gamlss(formula = CSI_obs~1, sigma.formula = CSI_obs~1, data = TrainingData, family = NO(mu.link = "identity", sigma.link = "identity"), 
+        if (DistMethod == 1){
+          TrainingData[,length(variableIndices)+1] <- pmax(0.001,TrainingData[,length(variableIndices)+1])
+          fit0 <- gamlss(formula = CSI_obs~1, sigma.formula = CSI_obs~1, data = TrainingData, family = GA(mu.link = "identity", sigma.link = "identity"), 
                          control = fitcontrol,i.control = fitcontrol2, trace = F)
-          if (DistMethod == -1){
-            fit1 <- fit0
-          } else if (DistMethod == 0){
-            fit1 <- stepGAIC(fit0, what="mu", scope = list(upper = paste0("~Global")), direction = "both", control = fitcontrol, i.control = fitcontrol2, trace = F)
-          } else if (DistMethod == 1){
-            fit1 <- stepGAIC(fit0, what="mu", scope = list(upper = form), steps = musteps[3], direction = "both", control = fitcontrol, i.control = fitcontrol2, trace = F)
-            fit1 <- stepGAIC(fit1, what="sigma", scope = list(upper = form), steps = sigmasteps[2], direction = "both", control = fitcontrol, i.control = fitcontrol2, trace = F)
-          }
+          fit1 <- stepGAIC(fit0, what="mu", scope = list(upper = form), steps = hypermusteps, direction = "both", control = fitcontrol, i.control = fitcontrol2, trace = F)
+          fit1 <- stepGAIC(fit1, what="sigma", scope = list(upper = form), steps = hypersigmasteps, direction = "both", control = fitcontrol, i.control = fitcontrol2, trace = F)
           Predictionset_mu <- unname(predict(fit1, newdata = TestingData, what = c("mu")), force = FALSE)
-          Predictionset_sigma <- pmax(unname(predict(fit1, newdata = TestingData, what = c("sigma")), force = FALSE),array(0.001, c(length(testIndices))))
+          Predictionset_sigma <- unname(predict(fit1, newdata = TestingData, what = c("sigma")), force = FALSE)
           for (i in 1:length(testIndices)){
-            tempPredictionset[testIndices[i],] <- unname(qNO(quants, mu = Predictionset_mu[i], sigma = Predictionset_sigma[i]))
+            tempPredictionset[testIndices[i],] <- unname(qGA(quants, mu = max(0.001,Predictionset_mu[i]), sigma = max(0.001,Predictionset_sigma[i])))
           }
-        } else if (DistMethod %in% c(2,3)){
-          if (DistMethod == 2){
-            gen.trun(par=c(min(RadiationData[predictand][[1]][tempIndices], na.rm = T),
-                           max(RadiationData[predictand][[1]][tempIndices], na.rm = T)),"NO", type="both")
-          } else if (DistMethod == 3){
-            gen.trun(par=c(0),"NO", type="left")
-          }
+        } else if (DistMethod == 2){
+          gen.trun(par=c(0),"NO", type="left")
           fit0 <- gamlss(formula = CSI_obs~1, sigma.formula = CSI_obs~1, data = TrainingData, family = NOtr(mu.link = "identity", sigma.link = "identity"), control = fitcontrol,i.control = fitcontrol2, trace = F)
-          fit1 <- stepGAIC(fit0, what="mu", scope = list(upper = form), steps = musteps[3], direction = "both", control = fitcontrol, i.control = fitcontrol2, trace = F)
-          fit1 <- stepGAIC(fit1, what="sigma", scope = list(upper = form), steps = sigmasteps[2], direction = "both", control = fitcontrol, i.control = fitcontrol2, trace = F)
+          fit1 <- stepGAIC(fit0, what="mu", scope = list(upper = form), steps = hypermusteps, direction = "both", control = fitcontrol, i.control = fitcontrol2, trace = F)
+          fit1 <- stepGAIC(fit1, what="sigma", scope = list(upper = form), steps = hypersigmasteps, direction = "both", control = fitcontrol, i.control = fitcontrol2, trace = F)
           Predictionset_mu <- unname(predict(fit1, newdata = TestingData, what = c("mu")), force = FALSE)
           Predictionset_sigma <- pmax(unname(predict(fit1, newdata = TestingData, what = c("sigma")), force = FALSE),array(0.001, c(length(testIndices))))
           for (i in 1:length(testIndices)){
@@ -309,38 +295,44 @@ for (time in 1:length(leadTimes)){
           tempPredictionset[testIndices,q] <- c(predict(fit1, as.matrix(TestingData[,-BadPredictors]))[[q]])
         }
       } else if (RegMethod == 4){
-        fit1 <- quantregForest(Predictors, Predictand, sampsize=ceiling(nrow(Predictors)*samps[5]), mtry = ceiling(ncol(Predictors)*mtries[2]), nodesize = nodesizes[1], ntree = ntrees[2])
+        fit1 <- quantregForest(Predictors, Predictand, sampsize=ceiling(nrow(Predictors)*hypersamps), mtry = ceiling(ncol(Predictors)*hypermtries), 
+                               nodesize = hypernodesizes, ntree = hyperntrees)
         tempPredictionset[testIndices,] <- predict(fit1, newdata = TestingData, what = quants)
-        #QRFimp[time,season,CVmonth,] <- importance(fit1)
       } else if (RegMethod == 5){
         for (q in 1:length(quants)){
-          fit1 <- gbm(CSI_obs~., data=TrainingData, distribution=list(name = "quantile",alpha = quants[q]), n.trees = ntrees[2], shrinkage=shrinkages[6],
-                      interaction.depth=depths[4], bag.fraction = samps[3], train.fraction = 1, n.minobsinnode = nodesizes[1], verbose=FALSE)
-          tempPredictionset[testIndices,q] <- predict(fit1, newdata = TestingData, n.trees = ntrees[2])
-          GBMimp[time,season,CVmonth,q,] <- varImp(fit1,ntrees[2])[[1]]
+          fit1 <- gbm(CSI_obs~., data=TrainingData, distribution=list(name = "quantile",alpha = quants[q]), n.trees = hyperntrees, shrinkage=hypershrinkages,
+                      interaction.depth=hyperdepths, bag.fraction = hypersamps, train.fraction = 1, n.minobsinnode = hypernodesizes, verbose=FALSE)
+          tempPredictionset[testIndices,q] <- predict(fit1, newdata = TestingData, n.trees = hyperntrees)
+          saveRDS(fit1, file = paste0("/nobackup/users/bakker/Data2/fits/fit_final_", CVmonth, "_", season, "_", time, "_", q, "_", RegMethod,"_", DistMethod,".rds"))
         }
       } else if (RegMethod == 6){
-        #for (q in 1:length(quants)){
-        #  fit1 <- qrnn.fit(as.matrix(TrainingData[,-length(colnames(TrainingData))]), as.matrix(TrainingData[,length(colnames(TrainingData))]),
-        #          n.hidden = 1, tau = quants[q], iter.max=5, n.trials=1, bag=T, trace = F, Th = linear, Th.prime = linear.prime)
-        #  tempPredictionset[testIndices,q] <- qrnn.predict(as.matrix(TestingData), fit1)
-        #}
-
-        fit1 <- mcqrnn.fit(as.matrix(Predictors), as.matrix(Predictand), n.hidden = hiddens1[3], n.hidden2 = hiddens2[1], tau = quants, iter.max=iters[2], n.trials=2,
-                           trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties[1])
-        tempPredictionset[testIndices,] <- as.matrix(mcqrnn.predict(as.matrix(TestingData), fit1, tau = quants))
+        if (hyperhiddens2 == 0){
+          resultstepProcedure <- stepwiseProcedure(data = TrainingData, quantiles = c(0.1,0.5,0.9), steps = hypermusteps-1, method = "ANN",
+                                                hiddens = hyperhiddens1, deephiddens = NULL, iters = hyperiters, penalties = hyperpenalties)
+        } else {
+          resultstepProcedure <- stepwiseProcedure(data = TrainingData, quantiles = c(0.1,0.5,0.9), steps = hypermusteps-1, method = "ANN",
+                                                   hiddens = hyperhiddens1, deephiddens = hyperhiddens2, iters = hyperiters, penalties = hyperpenalties)
+        }
+        #fit11 <- mcqrnn.fit(as.matrix(Predictors), as.matrix(Predictand), n.hidden = 1, n.hidden2 = NULL, tau = quants, iter.max= 10, 
+        #                   n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = 0)
+        #tempvarIndices <- c(1,which(abs(fit11[[1]][[1]]$W1[2:35]) > 0.2))
+        #tempvarIndices <- resultstepProcedure[[2]]
+        #fit1 <- mcqrnn.fit(as.matrix(Predictors[,tempvarIndices]), as.matrix(Predictand), n.hidden = 1, n.hidden2 = NULL, tau = quants, iter.max= 10, 
+        #           n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = 0)
+        fit1 <- resultstepProcedure[[1]]
+        fit1$predIndices <- resultstepProcedure[[2]]
+        tempPredictionset[testIndices,] <- as.matrix(mcqrnn.predict(as.matrix(TestingData[,resultstepProcedure[[2]]]), resultstepProcedure[[1]], tau = quants))
       } else if (RegMethod == 7){
         fit1 <- qtSVM(Predictors, Predictand, weights = quants[-length(quants)], max_gamma = 625, min_lambda  = 3.2e-07, clipping = -1,do.select = TRUE)
         tempPredictionset[testIndices,] <- cbind(predict(fit1, TestingData), predict(fit1, TestingData)[,length(quants)-1])
       } else if (RegMethod == 8){
-        fit1 <- rqupdated(TrainingData + array(rNO(dim(TrainingData)[1]*dim(TrainingData)[2],mu = 0, sigma = 0.001), c(dim(TrainingData)[1],dim(TrainingData)[2])), 
-                          quants, musteps[3])
+        tempTrainingData <- TrainingData + array(rNO(dim(TrainingData)[1]*dim(TrainingData)[2],mu = 0, sigma = 0.001), c(dim(TrainingData)[1],dim(TrainingData)[2]))
+        fit1 <- stepwiseProcedure(data = tempTrainingData, quantiles = quants, steps = hypermusteps, method = "QR")
         tempPredictionset[testIndices,] <- predict(fit1, TestingData)
       } else if (RegMethod == 9){
-        fit1 <- quantile_forest(Predictors, Predictand, quantiles = quants, regression.splitting = FALSE, sample.fraction = samps[5], 
-                                mtry = ceiling(ncol(Predictors)*mtries[2]), num.trees = ntrees[2], min.node.size = nodesizes[1], honesty = F, honesty.fraction = NULL)
+        fit1 <- quantile_forest(Predictors, Predictand, quantiles = quants, regression.splitting = FALSE, sample.fraction = hypersamps, 
+                      mtry = ceiling(ncol(Predictors)*hypermtries), num.trees = hyperntrees, min.node.size = hypernodesizes, honesty = F, honesty.fraction = NULL)
         #split_frequencies(fit1, max.depth = 5)
-        #GRFimp[time,season,CVmonth,] <- variable_importance(fit1)[,1]
         tempPredictionset[testIndices,] <- predict(fit1, newdata = TestingData, quantiles = quants)
       } else if (RegMethod == 10){
         mins <- apply(All_Data[tempIndices,], 2, min, na.rm  = T)
@@ -367,27 +359,28 @@ for (time in 1:length(leadTimes)){
       } 
       tempPredictionset[testIndices,] <- t(apply(tempPredictionset[testIndices,],1,sort))
     }
-    if (RegMethod > 0){
-      saveRDS(fit1, file = paste0("/nobackup/users/bakker/Data2/fits/fit_", CVmonth, "_", season, "_", time, "_", ContMethod, "_", ProbMethod, "_", RegMethod,"_", DistMethod, ".rds"))
+    if ((RegMethod > 0) && (RegMethod != 5)){
+      saveRDS(fit1, file = paste0("/nobackup/users/bakker/Data2/fits/fit_final2_", CVmonth, "_", season, "_", time, "_", RegMethod,"_", DistMethod,".rds"))
       rm(fit1, TrainingData, TestingData)
     }
     } 
   }
   for (date in 1:length(init_dates)){
     tempIndices2 <- which(tempIndices %in% c((length(stationPlaces)*(date - 1)+1):(length(stationPlaces)*date)))
+    if (length(tempIndices2) > 0){
     if (ProbMethod == 1){
       Predictionset[date,tempIndices[tempIndices2] - length(stationPlaces)*(date - 1),time] <- tempPredictionset[tempIndices2]*CSR[tempIndices[tempIndices2]]
     } else if (ProbMethod == 2){
       Predictionset[date,tempIndices[tempIndices2] - length(stationPlaces)*(date - 1),time,] <- tempPredictionset[tempIndices2,]*array(CSR[tempIndices[tempIndices2]], c(length(tempIndices2), length(quants)))
     }
+    }
   }
 }
 rm(variableData, All_Data, RadiationData)
 }
-saveRDS(Predictionset, file = paste0("/nobackup/users/bakker/Data2/predictionsets2/PS_final_", RegMethod, "_", DistMethod,".rds"))
-saveRDS(GBMimp, file = paste0("/nobackup/users/bakker/Data2/predictionsets2/Imp_final_", RegMethod, "_", DistMethod,".rds"))
+saveRDS(Predictionset, file = paste0("/nobackup/users/bakker/Data2/predictionsets2/PS_final2_", RegMethod, "_", DistMethod,".rds"))
 rm(Predictionset)
 gc()
 }
-}
+}}}}}}}}}}}}
 }
