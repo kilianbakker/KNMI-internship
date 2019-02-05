@@ -804,11 +804,10 @@ stepwiseProcedure <- function(data , quantiles, steps, method, hiddens = 1, deep
   Predictors <- data[,-length(colnames(data))]
   Predictand <- data[,length(colnames(data))]
   
+  actPredIndices <- c()
   if (method == "QR"){
-    actPredIndices <- c()
     AIC <- mean(AIC(rq(formula = as.formula(paste0(predictandname,"~",1)), data = data, tau = quantiles)))
   } else if (method == "ANN"){
-    actPredIndices <- c(1)
     tempfit <- mcqrnn.fit(as.matrix(Predictors[,actPredIndices]), as.matrix(Predictand), n.hidden = hiddens, n.hidden2 = deephiddens, tau = quantiles, iter.max= iters, 
                n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
     tempPredictions <- as.matrix(mcqrnn.predict(as.matrix(Predictors[,actPredIndices]), tempfit, tau = quantiles))
@@ -818,7 +817,6 @@ stepwiseProcedure <- function(data , quantiles, steps, method, hiddens = 1, deep
     }
     AIC <- mean(quantileAICs)
   } else if (method == "ANN2"){
-    actPredIndices <- c(1)
     if (is.null(deephiddens)){
       tempfit <- qrnn.fit(as.matrix(Predictors[,actPredIndices]), as.matrix(Predictand), n.hidden = hiddens, tau = 0.5, iter.max= iters, 
                           n.trials=2, lower = 0, trace = F, Th = sigmoid, Th.prime = sigmoid.prime, penalty = penalties)
@@ -945,6 +943,7 @@ CalculateImp <- function(RegMethod, DistMethod, leadTimes, seasons, NumberofCV, 
             } else if (RegMethod == 9){
               Imp[time,season,CVmonth,] <- variable_importance(tempfit)[,1]
             } else if (RegMethod == 6){
+              Imp[time,season,CVmonth,tempfit$predIndices] <- 1
             } 
           }
         } else if (RegMethod == 5){

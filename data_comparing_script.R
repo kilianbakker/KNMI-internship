@@ -307,10 +307,10 @@ for (time in 1:length(leadTimes)){
         }
       } else if (RegMethod == 6){
         if (hyperhiddens2 == 0){
-          resultstepProcedure <- stepwiseProcedure(data = TrainingData, quantiles = c(0.1,0.5,0.9), steps = hypermusteps-1, method = "ANN",
+          resultstepProcedure <- stepwiseProcedure(data = TrainingData, quantiles = c(0.1,0.5,0.9), steps = hypermusteps, method = "ANN",
                                                 hiddens = hyperhiddens1, deephiddens = NULL, iters = hyperiters, penalties = hyperpenalties)
         } else {
-          resultstepProcedure <- stepwiseProcedure(data = TrainingData, quantiles = c(0.1,0.5,0.9), steps = hypermusteps-1, method = "ANN",
+          resultstepProcedure <- stepwiseProcedure(data = TrainingData, quantiles = c(0.1,0.5,0.9), steps = hypermusteps, method = "ANN",
                                                    hiddens = hyperhiddens1, deephiddens = hyperhiddens2, iters = hyperiters, penalties = hyperpenalties)
         }
         #fit11 <- mcqrnn.fit(as.matrix(Predictors), as.matrix(Predictand), n.hidden = 1, n.hidden2 = NULL, tau = quants, iter.max= 10, 

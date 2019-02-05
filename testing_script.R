@@ -314,12 +314,12 @@ seasons <- list(c(201612,201701,201702,201712,201801,201802), c(201604,201605,20
 stepsize <- 1/50
 quants <- seq(stepsize,1-stepsize, stepsize)
 NumberofCV <- 3
-RegMethod <- 1
-DistMethod <- 2
+RegMethod <- 6
+DistMethod <- 0
 MuSig <- c(0,1)
 gbmTrees <- 100
 tempImp <- CalculateImp(RegMethod,DistMethod,leadTimes,seasons,NumberofCV,variableNames, MuSig, quants, gbmTrees)
-saveRDS(tempImp, file = paste0("/nobackup/users/bakker/Data2/predictionsets2/Imp_final_",RegMethod,"_",DistMethod,"_musigma.rds"))
+saveRDS(tempImp, file = paste0("/nobackup/users/bakker/Data2/predictionsets2/Imp_final_",RegMethod,"_",DistMethod,".rds"))
 ###########################
 
 settings <- list(c(2,2,0,0),c(2,2,1,1),c(2,2,1,2),c(2,2,8,0),c(2,2,4,0),c(2,2,9,0),c(2,2,5,0),c(2,2,6,0))
@@ -332,7 +332,7 @@ tempMethodsTexts <- MethodsTexts[tempsetting]
 RegMethod <- settings[[tempsetting]][3]
 DistMethod <- settings[[tempsetting]][4]
 
-Importances <- readRDS(file = paste0("/nobackup/users/bakker/Data2/predictionsets2/Imp_final_",RegMethod,"_",DistMethod,"_musigma.rds"))
+Importances <- readRDS(file = paste0("/nobackup/users/bakker/Data2/predictionsets2/Imp_final_",RegMethod,"_",DistMethod,".rds"))
 tempImportances <- array(0, c(length(variableNames2)))
 for (var in 1:length(variableNames2)){
   tempImportances[var] <- mean(Importances[,,,var], na.rm = T)
@@ -344,7 +344,7 @@ tempPlot <- ggplot(data = plotData) +
   geom_bar(aes(x = Names, y = Importance), stat = "identity") +
   coord_flip() + xlab("predictors") + ylab("Importance") + theme_bw()
 print(tempPlot)
-ggsave(paste0("importances_",tempMethodsTexts,"_musigma.pdf"), plot = tempPlot, device = "pdf", path = "/usr/people/bakker/kilianbakker/plots/final_plots/",  width = 12.5, height = 10, units = "cm")
+ggsave(paste0("importances_",tempMethodsTexts,".pdf"), plot = tempPlot, device = "pdf", path = "/usr/people/bakker/kilianbakker/plots/final_plots/",  width = 12.5, height = 10, units = "cm")
 }
 
 #################################
